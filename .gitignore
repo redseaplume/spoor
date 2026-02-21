@@ -1,0 +1,26 @@
+# Ignore everything
+*
+
+# Then allow what we ship
+!.gitignore
+!LICENSE
+!README.md
+!app-icon.png
+
+# Tauri app
+!src-tauri/
+!src-tauri/**
+src-tauri/target/
+src-tauri/gen/
+
+# Web frontend (served by Tauri)
+!web/
+!web/**
+
+# Models directory (structure only, not the files)
+!models/
+!models/*.txt
+models/*.onnx
+
+# OS
+.DS_Store
