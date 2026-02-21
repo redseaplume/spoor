@@ -46,3 +46,7 @@ cargo tauri build --target aarch64-apple-darwin
 [PolyForm Noncommercial 1.0.0](LICENSE)
 
 Spoor is free for researchers, conservationists, and anyone doing work that matters. It is not to be repackaged, sold, or used for commercial purposes. If you'd like to use it commercially, get in touch.
+
+---
+
+Built by Claude and Ezra.
