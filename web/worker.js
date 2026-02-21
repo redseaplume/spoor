@@ -1,9 +1,9 @@
-// sieve — inference worker
+// spoor — inference worker
 // Runs ONNX Runtime Web in a Web Worker, off the main thread.
 
 const ORT_VERSION = '1.21.0';
 const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist`;
-const MODEL_CACHE = 'sieve-models-v1';
+const MODEL_CACHE = 'spoor-models-v2';
 let INPUT_SIZE = 640; // default to 640 for speed; 1280 for accuracy
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
@@ -17,9 +17,9 @@ ort.env.wasm.numThreads = navigator.hardwareConcurrency
 ort.env.wasm.simd = true;
 
 // Diagnostics
-console.log('[sieve] SharedArrayBuffer available:', typeof SharedArrayBuffer !== 'undefined');
-console.log('[sieve] Hardware concurrency:', navigator.hardwareConcurrency);
-console.log('[sieve] WASM threads requested:', ort.env.wasm.numThreads);
+console.log('[spoor] SharedArrayBuffer available:', typeof SharedArrayBuffer !== 'undefined');
+console.log('[spoor] Hardware concurrency:', navigator.hardwareConcurrency);
+console.log('[spoor] WASM threads requested:', ort.env.wasm.numThreads);
 
 let session = null;
 
@@ -266,7 +266,7 @@ async function infer(msg) {
         detections = rescale(detections, scale, padLeft, padTop, w, h);
         const tPost = performance.now();
 
-        console.log(`[sieve] ${fileName}: decode=${Math.round(tDecode-t0)}ms preprocess=${Math.round(tPreprocess-tDecode)}ms inference=${Math.round(tInference-tPreprocess)}ms postprocess=${Math.round(tPost-tInference)}ms total=${Math.round(tPost-t0)}ms`);
+        console.log(`[spoor] ${fileName}: decode=${Math.round(tDecode-t0)}ms preprocess=${Math.round(tPreprocess-tDecode)}ms inference=${Math.round(tInference-tPreprocess)}ms postprocess=${Math.round(tPost-tInference)}ms total=${Math.round(tPost-t0)}ms`);
 
         postMessage({
             type: 'result',
@@ -295,7 +295,7 @@ self.onmessage = async (e) => {
         }
     } else if (msg.type === 'set-resolution') {
         INPUT_SIZE = msg.inputSize;
-        console.log(`[sieve] Resolution set to ${INPUT_SIZE}x${INPUT_SIZE}`);
+        console.log(`[spoor] Resolution set to ${INPUT_SIZE}x${INPUT_SIZE}`);
     } else if (msg.type === 'infer') {
         await infer(msg);
     }

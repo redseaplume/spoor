@@ -1,19 +1,19 @@
-// sieve — main thread
+// spoor — main thread
 // UI, file handling, inference (native Rust in Tauri, WASM in browser), rendering, export.
 
 const IS_TAURI = !!window.__TAURI_INTERNALS__;
 const invoke = IS_TAURI ? window.__TAURI_INTERNALS__.invoke : null;
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist';
-const MODEL_URL = '/models/mdv5a_int8.onnx';
-const MODEL_CACHE = 'spoor-models-v1';
+const MODEL_URL = '/models/mdv6-yolov10-c.onnx';
+const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 const CATEGORIES = { 0: 'animal', 1: 'person', 2: 'vehicle' };
 const CATEGORY_COLORS = { 0: '#c67b30', 1: '#4a6fa5', 2: '#6b8e6b' };
 
-// Desktop defaults to 1280 (fast enough natively), web defaults to 640
-let INPUT_SIZE = IS_TAURI ? 1280 : 640;
-let MODEL_TYPE = 'thorough'; // 'quick' or 'thorough' — desktop only
+// MDv6 is fast enough at 1280 for both native and web
+let INPUT_SIZE = 1280;
+let MODEL_TYPE = IS_TAURI ? 'thorough' : 'quick'; // Browser always uses MDv6
 let session = null;
 
 // ── ONNX Runtime config (browser only) ─────────────────────────
@@ -64,6 +64,8 @@ const clearBtn = document.getElementById('clear-btn');
 const folderBtn = document.getElementById('folder-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const dropZone = document.getElementById('drop-zone');
+const dropZonePrimary = dropZone.querySelector('.drop-zone-primary');
+const dropZoneSecondary = dropZone.querySelector('.drop-zone-secondary');
 const fileInput = document.getElementById('file-input');
 const statusBar = document.getElementById('status-bar');
 const statusText = document.getElementById('status-text');
@@ -78,13 +80,18 @@ const objectUrls = new Map();
 // ── Model loading ──────────────────────────────────────────────
 
 async function loadModel() {
-    statusBar.hidden = false;
-
     const cache = await caches.open(MODEL_CACHE);
     let response = await cache.match(MODEL_URL);
 
     if (!response) {
-        statusText.textContent = 'Downloading model (134 MB, one time only)\u2026';
+        let showProgress = false;
+        const slowTimer = setTimeout(() => {
+            showProgress = true;
+            dropZonePrimary.textContent = 'Downloading model\u2026';
+            dropZoneSecondary.textContent = '10 MB, one time only';
+            dropZoneSecondary.style.display = '';
+        }, 400);
+
         const fetchResponse = await fetch(MODEL_URL);
         if (!fetchResponse.ok) throw new Error(`Model fetch failed: ${fetchResponse.status}`);
 
@@ -98,20 +105,17 @@ async function loadModel() {
             if (done) break;
             chunks.push(value);
             received += value.length;
-            if (contentLength > 0) {
+            if (showProgress && contentLength > 0) {
                 const pct = Math.round((received / contentLength) * 100);
-                statusText.textContent = `Downloading model\u2026 ${pct}%`;
-                progressFill.style.width = `${pct}%`;
+                dropZonePrimary.textContent = `Downloading model\u2026 ${pct}%`;
             }
         }
 
+        clearTimeout(slowTimer);
         const blob = new Blob(chunks);
         response = new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } });
         await cache.put(MODEL_URL, response.clone());
     }
-
-    statusText.textContent = 'Starting up\u2026';
-    progressFill.style.width = '90%';
 
     const buffer = await response.arrayBuffer();
 
@@ -120,8 +124,6 @@ async function loadModel() {
     });
 
     state.modelReady = true;
-    statusBar.hidden = true;
-    progressFill.style.width = '0%';
     console.log('[spoor] model ready');
 
     if (state.queue.length > 0 && !state.processing) processNext();
@@ -134,7 +136,8 @@ if (IS_TAURI) {
 } else {
     loadModel().catch(err => {
         console.error('Model load failed:', err);
-        statusText.textContent = `Failed to load model: ${err.message}`;
+        dropZonePrimary.textContent = 'Failed to load model';
+        dropZoneSecondary.textContent = err.message;
     });
 }
 
@@ -252,6 +255,30 @@ function postprocess(output) {
     return detections;
 }
 
+// MDv6 YOLOv10-c: NMS-free, output is [1, 300, 6] = [x1, y1, x2, y2, conf, class]
+function postprocessV6(output) {
+    const data = output.data;
+    const numPreds = output.dims[1];
+    const detections = [];
+
+    for (let i = 0; i < numPreds; i++) {
+        const off = i * 6;
+        const conf = data[off + 4];
+        if (conf <= CONF_THRESHOLD) continue;
+
+        const cls = Math.round(data[off + 5]);
+        detections.push({
+            bbox: [data[off], data[off + 1], data[off + 2], data[off + 3]],
+            confidence: conf,
+            category: cls,
+            categoryName: CATEGORIES[cls]
+        });
+    }
+
+    detections.sort((a, b) => b.confidence - a.confidence);
+    return detections;
+}
+
 function rescale(detections, scale, padLeft, padTop, origW, origH) {
     return detections.map(det => {
         let [x1, y1, x2, y2] = det.bbox;
@@ -319,8 +346,8 @@ async function inferWasm(id, file) {
     const output = results[session.outputNames[0]];
     const tInference = performance.now();
 
-    // Postprocess
-    let detections = postprocess(output);
+    // Postprocess — MDv6 is NMS-free
+    let detections = postprocessV6(output);
     detections = rescale(detections, scale, padLeft, padTop, origW, origH);
     const tPost = performance.now();
 
@@ -930,11 +957,9 @@ modelThoroughBtn.addEventListener('click', () => {
 const resFast = document.getElementById('res-fast');
 const resAccurate = document.getElementById('res-accurate');
 
-// Desktop defaults to Accurate (1280) since native is fast enough
-if (IS_TAURI) {
-    resFast.classList.remove('active');
-    resAccurate.classList.add('active');
-}
+// Both desktop and web default to Accurate (1280) — MDv6 is fast enough
+resFast.classList.remove('active');
+resAccurate.classList.add('active');
 
 resFast.addEventListener('click', () => {
     resFast.classList.add('active');
