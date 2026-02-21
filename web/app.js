@@ -9,7 +9,7 @@ const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 const CATEGORIES = { 0: 'animal', 1: 'person', 2: 'vehicle' };
-const CATEGORY_COLORS = { 0: '#c67b30', 1: '#4a6fa5', 2: '#6b8e6b' };
+const CATEGORY_COLORS = { 0: '#5a7a52', 1: '#4a6a9a', 2: '#b06a28' };
 
 // MDv6 is fast enough at 1280 for both native and web
 let INPUT_SIZE = 1280;
@@ -556,13 +556,58 @@ function drawBboxes(result) {
     }
 }
 
+function buildExpandedContent(result) {
+    const dets = visibleDetections(result);
+    if (dets.length === 0) return '';
+
+    let html = '';
+    for (let i = 0; i < dets.length; i++) {
+        const det = dets[i];
+
+        // Species info (when available)
+        if (det.species) {
+            html += `<div class="expanded-row">
+                <span class="expanded-label">Species</span>
+                <span class="expanded-value"><span class="species-tag">${det.species.commonName} <span class="species-prob">${det.species.probability.toFixed(2)}</span></span></span>
+            </div>`;
+            const taxParts = [det.species.class, det.species.order, det.species.family].filter(Boolean);
+            if (taxParts.length > 0) {
+                html += `<div class="expanded-row">
+                    <span class="expanded-label">Taxonomy</span>
+                    <span class="expanded-value">${taxParts.join(' \u00b7 ')}</span>
+                </div>`;
+            }
+        }
+
+        // Box coordinates + confidence
+        const boxLabel = dets.length > 1 ? `Box ${i + 1}` : 'Box';
+        if (det.bboxNorm) {
+            const bboxStr = det.bboxNorm.map(v => v.toFixed(2)).join(', ');
+            html += `<div class="expanded-row">
+                <span class="expanded-label">${boxLabel}</span>
+                <span class="expanded-value">[${bboxStr}] \u00b7 ${(det.confidence * 100).toFixed(1)}% ${det.categoryName}</span>
+            </div>`;
+        }
+    }
+
+    return html;
+}
+
 function updateCard(result) {
     const dets = visibleDetections(result);
     const card = result.cardElement;
     card.classList.toggle('empty', dets.length === 0);
+    // Update category class for left border
+    card.classList.remove('cat-animal', 'cat-person', 'cat-vehicle', 'cat-empty');
+    card.classList.add(`cat-${cardCategory(result)}`);
     const info = card.querySelector('.result-detections');
     if (info) info.textContent = summarizeDetections(result.detections, dets);
     drawBboxes(result);
+    // Update expandable state and content
+    card.classList.toggle('expandable', dets.length > 0);
+    if (dets.length === 0) card.classList.remove('expanded');
+    const expandedDiv = card.querySelector('.result-expanded');
+    if (expandedDiv) expandedDiv.innerHTML = buildExpandedContent(result);
 }
 
 function renderCard(result) {
@@ -572,6 +617,10 @@ function renderCard(result) {
 
     const dets = visibleDetections(result);
     if (dets.length === 0) card.classList.add('empty');
+
+    // Category class for left border color
+    const cat = cardCategory(result);
+    card.classList.add(`cat-${cat}`);
 
     const container = document.createElement('div');
     container.className = 'image-container';
@@ -598,12 +647,26 @@ function renderCard(result) {
     info.className = 'result-info';
     info.innerHTML = `
         <div class="result-filename">${result.fileName}</div>
-        <div class="result-detections">${summarizeDetections(result.detections, dets)}</div>
-        <div class="result-time">${result.inferenceTimeMs}ms</div>
+        <div class="result-meta">
+            <span class="result-detections">${summarizeDetections(result.detections, dets)}</span>
+            <span class="result-time">${result.inferenceTimeMs.toLocaleString()}ms</span>
+        </div>
     `;
+
+    // Expanded detail panel
+    const expanded = document.createElement('div');
+    expanded.className = 'result-expanded';
+    expanded.innerHTML = buildExpandedContent(result);
+    if (dets.length > 0) card.classList.add('expandable');
 
     card.appendChild(container);
     card.appendChild(info);
+    card.appendChild(expanded);
+    card.addEventListener('click', () => {
+        if (card.classList.contains('expandable')) {
+            card.classList.toggle('expanded');
+        }
+    });
     card.addEventListener('animationend', () => card.classList.add('settled'), { once: true });
     result.cardElement = card;
     resultsGrid.appendChild(card);

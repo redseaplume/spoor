@@ -16,9 +16,6 @@ src-tauri/gen/
 # Web frontend (served by Tauri)
 !web/
 !web/**
-!web-v2/
-!web-v2/**
-
 # Models directory (structure only, not the files)
 !models/
 !models/*.txt

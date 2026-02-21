@@ -2,7 +2,7 @@
 
 Camera trap image detection and species identification. Runs locally, nothing leaves your device.
 
-*Spoor: the tracks and signs an animal leaves behind. From Afrikaans/Dutch.*
+*Spoor: the tracks and signs an animal leaves behind.*
 
 ## What it does
 
@@ -34,6 +34,24 @@ models/speciesnet-labels.txt     # Species label map
 cd src-tauri
 cargo tauri build --target aarch64-apple-darwin
 ```
+
+## Why Spoor
+
+Most camera trap AI tools require Python, PyTorch, and multi-gigabyte installs. Cloud platforms require uploading your images to someone else's server.
+
+| | Spoor | CamTrap Detector | AddaxAI |
+|---|---|---|---|
+| **Install size** | 300 MB | 383–498 MB | 4.4 GB+ |
+| **Dependencies** | None | None | Python, Conda, PyTorch |
+| **Detection models** | 2 (MDv6 + MDv5a) | 1 (MDv5) | MDv5 + regional |
+| **Species ID** | 2,000+ species | No | Regional classifiers |
+| **Web version** | Yes (10 MB model) | No | No |
+| **Data stays local** | Yes | Yes | Yes |
+| **Platforms** | macOS | Windows, macOS, Linux | Windows, macOS, Linux |
+
+Spoor bundles three models (two detectors + species classifier) in a single app smaller than most single-model alternatives. The web version runs entirely in your browser with a 10 MB download — no server, no account, no upload.
+
+macOS for now. Linux and Windows coming soon.
 
 ## Detection models
 
