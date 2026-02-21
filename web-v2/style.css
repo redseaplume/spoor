@@ -1,0 +1,630 @@
+/* ── Reset & Variables ─────────────────────────────────────── */
+
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #e8e5e0;
+    --bg-card: #f2f0ec;
+    --bg-hover: #dbd8d3;
+    --bg-input: #dedbd6;
+
+    --text: #1e1e1e;
+    --text-secondary: #1e1e1eaa;
+    --text-muted: #1e1e1e66;
+
+    --border: #1e1e1e;
+    --border-light: #1e1e1e33;
+    --border-dashed: #1e1e1e22;
+
+    --amber: #b06a28;
+    --sage: #5a7a52;
+    --blue: #4a6a9a;
+    --empty-gray: #8a8a8a;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+}
+
+/* ── Typography ────────────────────────────────────────────── */
+
+.label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.label-slash {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-right: 0.125rem;
+}
+
+/* ── Layout ────────────────────────────────────────────────── */
+
+main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+
+header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.tagline {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.1rem;
+    letter-spacing: 0.02em;
+}
+
+/* ── Drop Zone ─────────────────────────────────────────────── */
+
+#drop-zone {
+    border: 1.5px dashed var(--border-light);
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+#drop-zone:hover,
+#drop-zone.drag-over {
+    border-color: var(--amber);
+    background: rgba(176, 106, 40, 0.04);
+}
+
+#drop-zone.compact {
+    padding: 0.75rem 2rem;
+}
+
+#drop-zone.compact .drop-zone-primary {
+    font-size: 0.75rem;
+}
+
+#drop-zone.compact .drop-zone-secondary {
+    display: none;
+}
+
+.drop-zone-primary {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.drop-zone-secondary {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* ── Controls / Options Row ────────────────────────────────── */
+
+#options {
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.control-group[hidden] {
+    display: none;
+}
+
+.toggle-label {
+    color: var(--text-muted);
+}
+
+.toggle-btn {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.12s;
+}
+
+.toggle-btn:hover {
+    color: var(--text);
+    border-color: var(--text-secondary);
+}
+
+.toggle-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+}
+
+/* Filter buttons — checkbox style via pseudo-element */
+
+.filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.filter-btn::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.filter-btn.active::before {
+    background: var(--text);
+    border-color: var(--text);
+}
+
+/* Category-specific checkbox colors */
+.filter-btn.active[data-category="animal"]::before {
+    background: var(--sage);
+    border-color: var(--sage);
+}
+
+.filter-btn.active[data-category="person"]::before {
+    background: var(--blue);
+    border-color: var(--blue);
+}
+
+.filter-btn.active[data-category="vehicle"]::before {
+    background: var(--amber);
+    border-color: var(--amber);
+}
+
+.filter-btn.active[data-category="empty"]::before {
+    background: var(--empty-gray);
+    border-color: var(--empty-gray);
+}
+
+/* When filter-btn is active, use a subtler background than the default toggle */
+.filter-btn.active {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border-light);
+}
+
+.filter-btn.active:hover {
+    border-color: var(--text-secondary);
+}
+
+/* Info tip */
+
+.info-tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border-light);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    cursor: help;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.info-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: -4px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 0.65rem;
+    line-height: 1.5;
+    padding: 0.5rem 0.65rem;
+    white-space: pre-line;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 20;
+    width: max-content;
+    max-width: 220px;
+}
+
+.info-tip:hover::after {
+    opacity: 1;
+}
+
+/* Confidence slider */
+
+#threshold-control {
+    gap: 0.4rem;
+}
+
+#threshold-slider {
+    width: 80px;
+    accent-color: var(--amber);
+    height: 2px;
+}
+
+#threshold-value {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    min-width: 2em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Action Buttons ────────────────────────────────────────── */
+
+.action-btn {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+}
+
+.action-btn:hover {
+    border-color: var(--text);
+    color: var(--text);
+}
+
+.action-btn.primary {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+.action-btn.primary:hover {
+    background: var(--amber);
+    color: var(--bg);
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-btn:disabled:hover {
+    background: transparent;
+    color: var(--amber);
+}
+
+.action-btn[hidden] {
+    display: none;
+}
+
+/* ── Status Bar ────────────────────────────────────────────── */
+
+#status-bar {
+    margin-top: 1rem;
+    padding: 0.6rem 0;
+}
+
+#status-bar[hidden] {
+    display: none;
+}
+
+#status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+}
+
+#status-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+}
+
+.cancel-btn {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.cancel-btn:hover {
+    border-color: #b44;
+    color: #b44;
+}
+
+.cancel-btn[hidden] {
+    display: none;
+}
+
+#progress-track {
+    height: 2px;
+    background: var(--border-light);
+    overflow: hidden;
+}
+
+#progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--amber);
+    transition: width 0.2s ease-out;
+}
+
+#status-counts {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    letter-spacing: 0.02em;
+}
+
+/* ── Results ───────────────────────────────────────────────── */
+
+#results {
+    margin-top: 1rem;
+}
+
+#results[hidden] {
+    display: none;
+}
+
+#results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+}
+
+#results-summary {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+#results-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+#sort-controls[hidden],
+#filter-controls[hidden] {
+    display: none;
+}
+
+/* ── Results Grid ──────────────────────────────────────────── */
+
+#results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    align-items: start;
+}
+
+/* ── Result Card ───────────────────────────────────────────── */
+
+.result-card {
+    background: var(--bg-card);
+    overflow: hidden;
+    border: 1px solid var(--border-dashed);
+    transition: border-color 0.12s;
+    position: relative;
+    opacity: 0;
+    transform: translateY(6px);
+    animation: card-in 0.25s ease-out forwards;
+}
+
+@keyframes card-in {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-card.settled {
+    opacity: 1;
+    transform: none;
+    animation: none;
+}
+
+.result-card:hover {
+    border-color: var(--border-light);
+}
+
+/* Category indicator — thin left border */
+.result-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    z-index: 1;
+}
+
+.result-card.cat-animal::before { background: var(--sage); }
+.result-card.cat-person::before { background: var(--blue); }
+.result-card.cat-vehicle::before { background: var(--amber); }
+.result-card.cat-empty::before { background: transparent; }
+
+/* Empty state */
+.result-card.empty,
+.result-card.cat-empty {
+    opacity: 0.55;
+}
+
+.result-card.empty .image-container,
+.result-card.cat-empty .image-container {
+    filter: grayscale(0.3);
+}
+
+/* Override opacity for settled empty cards (animation sets opacity: 1) */
+.result-card.settled.empty,
+.result-card.settled.cat-empty {
+    opacity: 0.55;
+}
+
+/* Image area */
+.image-container {
+    position: relative;
+    line-height: 0;
+    background: var(--bg-hover);
+    min-height: 80px;
+}
+
+.image-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+
+.image-container img.loaded {
+    opacity: 1;
+}
+
+.bbox-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Card info */
+.result-info {
+    padding: 0.45rem 0.6rem;
+    padding-left: calc(0.6rem + 2px);
+}
+
+.result-filename {
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
+}
+
+.result-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.15rem;
+}
+
+.result-detections {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.result-time {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Expanded card detail ──────────────────────────────────── */
+
+.result-card.expandable {
+    cursor: pointer;
+}
+
+.result-card.expanded {
+    border-color: var(--border-light);
+}
+
+.result-expanded {
+    padding: 0.5rem 0.6rem;
+    padding-left: calc(0.6rem + 2px);
+    border-top: 1px dashed var(--border-dashed);
+    display: none;
+}
+
+.result-card.expanded .result-expanded {
+    display: block;
+}
+
+.expanded-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+}
+
+.expanded-row + .expanded-row {
+    border-top: 1px dashed var(--border-dashed);
+}
+
+.expanded-label {
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    min-width: 4rem;
+    flex-shrink: 0;
+}
+
+.expanded-value {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.species-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+
+.species-prob {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>spoor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+        <header id="header">
+            <h1>spoor</h1>
+            <p class="tagline">Camera trap image detection. Everything stays on your device.</p>
+        </header>
+
+        <div id="drop-zone">
+            <div class="drop-zone-content">
+                <p class="drop-zone-primary">Drop images or folders here</p>
+                <p class="drop-zone-secondary">or click to select files</p>
+                <input type="file" id="file-input" multiple accept="image/*" hidden>
+            </div>
+        </div>
+
+        <div id="options">
+            <button id="folder-btn" class="action-btn primary" hidden>Select Folder</button>
+
+            <div id="model-toggle" class="control-group" hidden>
+                <span class="label-slash">/</span><span class="label toggle-label">Model</span>
+                <button id="model-quick" class="toggle-btn">Quick</button>
+                <button id="model-thorough" class="toggle-btn active">Thorough</button>
+                <span class="info-tip" data-tip="Quick — MDv6&#10;~180ms/img · 97.5% recall&#10;Faster, slightly looser boxes&#10;&#10;Thorough — MDv5a&#10;~1s/img · 99.2% recall&#10;Slower, tighter boxes">?</span>
+            </div>
+
+            <div id="resolution-toggle" class="control-group">
+                <span class="label-slash">/</span><span class="label toggle-label">Resolution</span>
+                <button id="res-fast" class="toggle-btn">Fast (640)</button>
+                <button id="res-accurate" class="toggle-btn active">Accurate (1280)</button>
+            </div>
+
+            <div id="threshold-control" class="control-group" hidden>
+                <span class="label-slash">/</span><span class="label toggle-label">Confidence</span>
+                <input type="range" id="threshold-slider" min="0.05" max="0.95" step="0.05" value="0.2">
+                <span id="threshold-value">20%</span>
+            </div>
+        </div>
+
+        <div id="status-bar" hidden>
+            <div id="status-row">
+                <span id="status-text">Loading model…</span>
+                <button id="cancel-btn" class="cancel-btn" hidden>Cancel</button>
+            </div>
+            <div id="progress-track">
+                <div id="progress-fill"></div>
+            </div>
+            <div id="status-counts"></div>
+        </div>
+
+        <div id="results" hidden>
+            <div id="results-header">
+                <span id="results-summary"></span>
+                <div id="results-controls">
+                    <div id="sort-controls" class="control-group" hidden>
+                        <span class="label-slash">/</span><span class="label toggle-label">Sort</span>
+                        <button class="toggle-btn sort-btn active" data-sort="processing">Order</button>
+                        <button class="toggle-btn sort-btn" data-sort="confidence">Confidence</button>
+                        <button class="toggle-btn sort-btn" data-sort="filename">Filename</button>
+                    </div>
+                    <div id="filter-controls" class="control-group" hidden>
+                        <span class="label-slash">/</span><span class="label toggle-label">Show</span>
+                        <button class="toggle-btn filter-btn active" data-category="animal">Animal</button>
+                        <button class="toggle-btn filter-btn active" data-category="person">Person</button>
+                        <button class="toggle-btn filter-btn active" data-category="vehicle">Vehicle</button>
+                        <button class="toggle-btn filter-btn active" data-category="empty">Empty</button>
+                    </div>
+                    <button id="species-btn" class="action-btn primary" hidden>Species</button>
+                    <button id="export-btn" class="action-btn" hidden>JSON</button>
+                    <button id="export-csv-btn" class="action-btn" hidden>CSV</button>
+                    <button id="clear-btn" class="action-btn" hidden>Clear</button>
+                </div>
+            </div>
+            <div id="results-grid"></div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js" onerror="console.log('[spoor] ONNX Runtime Web not loaded (expected in desktop mode)')"></script>
+    <script src="app.js"></script>
+</body>
+</html>
