@@ -21,7 +21,7 @@ See [Releases](https://github.com/redseaplume/spoor/releases) for the latest bui
 
 - **macOS**: Apple Silicon native. Intel Macs supported via Rosetta 2.
 - **Windows**: 10 and later. WebView2 required (installs automatically).
-- **Linux**: .deb and .rpm packages. Requires libwebkit2gtk-4.1 (Ubuntu 22.04+, Fedora 36+).
+- **Linux**: .deb and .rpm packages. Requires glibc 2.38+ and libwebkit2gtk-4.1 (Ubuntu 24.04+, Fedora 39+).
 
 ## Build from source
 
