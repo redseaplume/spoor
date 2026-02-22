@@ -7,6 +7,7 @@
 !.github/**
 !LICENSE
 !README.md
+!BENCHMARKS.md
 !app-icon.png
 
 # Tauri app
@@ -14,6 +15,10 @@
 !src-tauri/**
 src-tauri/target/
 src-tauri/gen/
+
+# Scripts (benchmarking, model conversion)
+!scripts/
+!scripts/**
 
 # Web frontend (served by Tauri)
 !web/
