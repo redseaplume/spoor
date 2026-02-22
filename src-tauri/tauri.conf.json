@@ -27,12 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "windows": {
-      "nsis": {
-        "installMode": "perUser"
-      }
-    },
-    "resources": {
+"resources": {
       "../models/mdv5a_int8.onnx": "mdv5a_int8.onnx",
       "../models/mdv6-yolov10-c.onnx": "mdv6-yolov10-c.onnx",
       "../models/speciesnet-v4.0.2a.onnx": "speciesnet-v4.0.2a.onnx",
