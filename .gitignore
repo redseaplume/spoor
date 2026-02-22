@@ -3,6 +3,8 @@
 
 # Then allow what we ship
 !.gitignore
+!.github/
+!.github/**
 !LICENSE
 !README.md
 !app-icon.png
