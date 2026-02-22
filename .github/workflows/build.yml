@@ -94,7 +94,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Build
-        run: cargo tauri build
+        run: cargo tauri build --bundles deb,rpm
         working-directory: src-tauri
 
       - name: Upload deb
