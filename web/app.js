@@ -166,7 +166,7 @@ async function loadModel() {
             chunks.push(value);
             received += value.length;
             if (showProgress && contentLength > 0) {
-                const pct = Math.round((received / contentLength) * 100);
+                const pct = Math.min(100, Math.round((received / contentLength) * 100));
                 dropZonePrimary.textContent = `Downloading model\u2026 ${pct}%`;
             }
         }
