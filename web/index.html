@@ -8,51 +8,56 @@
 </head>
 <body>
     <main>
-        <header id="header">
+        <header id="header" data-testid="header">
             <h1>spoor</h1>
             <p class="tagline">Camera trap image detection. Everything stays on your device.</p>
         </header>
 
-        <div id="drop-zone">
-            <div class="drop-zone-content">
-                <p class="drop-zone-primary">Drop images or folders here</p>
-                <p class="drop-zone-secondary">or click to select files</p>
+        <div class="command-bar">
+            <div class="drop-zone" id="drop-zone" data-testid="drop-zone">
+                <div class="drop-zone-inner" id="drop-inner">
+                    <div class="drop-zone-text" id="drop-text">
+                        <p class="drop-zone-primary">Drop images or folders here</p>
+                        <p class="drop-zone-secondary">or click to select</p>
+                    </div>
+                </div>
+                <div class="convergence-container" id="convergence"></div>
                 <input type="file" id="file-input" multiple accept="image/*" hidden>
             </div>
-        </div>
 
-        <div id="options">
-            <button id="folder-btn" class="action-btn primary" hidden>Select Folder</button>
+            <div class="right-stack">
+                <div class="controls-row" data-testid="controls">
+                    <div class="model-group" data-testid="model-group" hidden>
+                        <span class="label">Model</span>
+                        <button id="model-quick" class="toggle-btn" data-testid="model-quick">Quick (MDv6)</button>
+                        <button id="model-thorough" class="toggle-btn active" data-testid="model-thorough">Thorough (MDv5a)</button>
+                    </div>
 
-            <div id="model-toggle" class="control-group" hidden>
-                <span class="label-slash">/</span><span class="label toggle-label">Model</span>
-                <button id="model-quick" class="toggle-btn">Quick (MDv6)</button>
-                <button id="model-thorough" class="toggle-btn active">Thorough (MDv5a)</button>
-                <span class="info-tip" data-tip="Quick — MDv6&#10;~180ms/img · 97.5% recall&#10;Faster, slightly looser boxes&#10;&#10;Thorough — MDv5a&#10;~1s/img · 99.2% recall&#10;Slower, tighter boxes">?</span>
-            </div>
+                    <div class="res-group" id="res-group" data-testid="resolution-group">
+                        <div class="sep"></div>
+                        <button id="res-fast" class="toggle-btn" data-testid="res-fast">Fast (640)</button>
+                        <button id="res-accurate" class="toggle-btn active" data-testid="res-accurate">Accurate (1280)</button>
+                    </div>
 
-            <div id="resolution-toggle" class="control-group">
-                <span class="label-slash">/</span><span class="label toggle-label">Resolution</span>
-                <button id="res-fast" class="toggle-btn">Fast (640)</button>
-                <button id="res-accurate" class="toggle-btn active">Accurate (1280)</button>
-            </div>
+                    <div class="confidence-group" data-testid="confidence-group" hidden>
+                        <div class="sep"></div>
+                        <span class="label">Confidence</span>
+                        <input type="range" id="threshold-slider" data-testid="confidence-slider" min="0.05" max="0.95" step="0.05" value="0.2">
+                        <span id="threshold-value" data-testid="confidence-value">20%</span>
+                    </div>
+                </div>
 
-            <div id="threshold-control" class="control-group" hidden>
-                <span class="label-slash">/</span><span class="label toggle-label">Confidence</span>
-                <input type="range" id="threshold-slider" min="0.05" max="0.95" step="0.05" value="0.2">
-                <span id="threshold-value">20%</span>
+                <div id="status-bar" class="status-section">
+                    <div class="status-row">
+                        <span id="status-text">Loading model…</span>
+                        <button id="cancel-btn" class="cancel-btn hidden">Cancel</button>
+                    </div>
+                    <div class="count-row"><span class="count-marker animal"></span> <span class="count-num" id="count-animal">0</span> animal</div>
+                    <div class="count-row"><span class="count-marker person"></span> <span class="count-num" id="count-person">0</span> person</div>
+                    <div class="count-row"><span class="count-marker vehicle"></span> <span class="count-num" id="count-vehicle">0</span> vehicle</div>
+                    <div class="count-row"><span class="count-marker empty"></span> <span class="count-num" id="count-empty">0</span> empty</div>
+                </div>
             </div>
-        </div>
-
-        <div id="status-bar" hidden>
-            <div id="status-row">
-                <span id="status-text">Loading model…</span>
-                <button id="cancel-btn" class="cancel-btn" hidden>Cancel</button>
-            </div>
-            <div id="progress-track">
-                <div id="progress-fill"></div>
-            </div>
-            <div id="status-counts"></div>
         </div>
 
         <div id="results" hidden>
@@ -60,19 +65,19 @@
                 <span id="results-summary"></span>
                 <div id="results-controls">
                     <div id="sort-controls" class="control-group" hidden>
-                        <span class="label-slash">/</span><span class="label toggle-label">Sort</span>
+                        <span class="label">Sort</span>
                         <button class="toggle-btn sort-btn active" data-sort="processing">Order</button>
                         <button class="toggle-btn sort-btn" data-sort="confidence">Confidence</button>
                         <button class="toggle-btn sort-btn" data-sort="filename">Filename</button>
                     </div>
                     <div id="filter-controls" class="control-group" hidden>
-                        <span class="label-slash">/</span><span class="label toggle-label">Show</span>
+                        <span class="label">Show</span>
                         <button class="toggle-btn filter-btn active" data-category="animal">Animal</button>
                         <button class="toggle-btn filter-btn active" data-category="person">Person</button>
                         <button class="toggle-btn filter-btn active" data-category="vehicle">Vehicle</button>
                         <button class="toggle-btn filter-btn active" data-category="empty">Empty</button>
                     </div>
-                    <button id="species-btn" class="action-btn primary" hidden>Species</button>
+                    <button id="species-btn" class="action-btn primary" data-testid="species-btn" hidden>Species</button>
                     <button id="export-btn" class="action-btn" hidden>JSON</button>
                     <button id="export-csv-btn" class="action-btn" hidden>CSV</button>
                     <button id="clear-btn" class="action-btn" hidden>Clear</button>

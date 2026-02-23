@@ -36,35 +36,24 @@ body {
     min-height: 100dvh;
 }
 
-/* ── Typography ────────────────────────────────────────────── */
-
-.label {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.label-slash {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-right: 0.125rem;
-}
-
 /* ── Layout ────────────────────────────────────────────────── */
 
 main {
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem 1.5rem;
+    padding-bottom: 6rem;
 }
 
 /* ── Header ────────────────────────────────────────────────── */
 
 header {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
 }
 
 header h1 {
@@ -75,59 +64,341 @@ header h1 {
 
 .tagline {
     font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-top: 0.1rem;
+    color: var(--text-muted);
     letter-spacing: 0.02em;
+}
+
+/* ── Command Bar ───────────────────────────────────────────── */
+
+.command-bar {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 1.5rem;
+    align-items: start;
 }
 
 /* ── Drop Zone ─────────────────────────────────────────────── */
 
-#drop-zone {
-    border: 1.5px dashed var(--border-light);
-    padding: 3rem 2rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
+.drop-zone {
+    width: 160px;
+    min-height: 60px;
+    position: relative;
+    grid-row: 1 / 2;
+    align-self: stretch;
+    overflow: hidden;
 }
 
-#drop-zone:hover,
-#drop-zone.drag-over {
+.drop-zone-inner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border: 1.5px dashed var(--border-light);
+    background: transparent;
+    cursor: pointer;
+    transition:
+        top 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+        right 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+        bottom 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+        left 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s ease;
+}
+
+.drop-zone-inner:hover {
+    border-color: var(--amber);
+}
+
+.drop-zone.drag-over .drop-zone-inner {
     border-color: var(--amber);
     background: rgba(176, 106, 40, 0.04);
 }
 
-#drop-zone.compact {
-    padding: 0.75rem 2rem;
+.drop-zone.processing .drop-zone-inner {
+    top: calc(50% - 5px);
+    right: calc(50% - 5px);
+    bottom: calc(50% - 5px);
+    left: calc(50% - 5px);
+    background: var(--text);
+    border-color: transparent;
+    cursor: default;
 }
 
-#drop-zone.compact .drop-zone-primary {
-    font-size: 0.75rem;
+.drop-zone-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+    z-index: 1;
 }
 
-#drop-zone.compact .drop-zone-secondary {
-    display: none;
+.drop-zone-text.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .drop-zone-primary {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
+    padding: 0 0.75rem;
 }
 
 .drop-zone-secondary {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
 }
 
-/* ── Controls / Options Row ────────────────────────────────── */
+@keyframes core-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.4); opacity: 1; }
+}
 
-#options {
-    margin-top: 0.75rem;
+.drop-zone-inner.pulsing {
+    animation: core-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Convergence Particles ─────────────────────────────────── */
+
+.convergence-container {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+.convergence-container.fading {
+    opacity: 0;
+}
+
+.particle {
+    position: absolute;
+    left: calc(50% - 1.5px);
+    top: calc(50% - 1.5px);
+    width: 3px;
+    height: 3px;
+    background: var(--text);
+    opacity: 0;
+}
+
+@keyframes converge {
+    0% {
+        transform: translate(var(--sx), var(--sy));
+        opacity: 0;
+    }
+    12% {
+        opacity: 0.6;
+    }
+    75% {
+        opacity: 0.4;
+    }
+    100% {
+        transform: translate(0, 0);
+        opacity: 0;
+    }
+}
+
+.convergence-container.active .particle {
+    animation: converge var(--dur) ease-in infinite;
+    animation-delay: var(--delay);
+}
+
+/* ── Right Side (stacked controls + status) ───────────────── */
+
+.right-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ── Controls Row (single row: model + res + confidence) ──── */
+
+.controls-row {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
-    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
 }
+
+.label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.toggle-btn {
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.toggle-btn:hover { color: var(--text); border-color: var(--text-secondary); }
+.toggle-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+/* ── Model Group ─────────────────────────────────────────── */
+
+.model-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.model-group[hidden] {
+    display: none;
+}
+
+/* ── Separator ────────────────────────────────────────────── */
+
+.sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border-light);
+    flex-shrink: 0;
+    margin: 0 0.3rem;
+}
+
+/* ── Resolution sub-group (inline, slides in/out) ─────────── */
+
+.res-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    max-width: 300px;
+    opacity: 1;
+    transition: max-width 0.25s ease, opacity 0.2s ease, margin 0.25s ease;
+    margin-left: 0;
+}
+
+.res-group.hidden {
+    max-width: 0;
+    opacity: 0;
+    margin-left: -0.4rem;
+    pointer-events: none;
+}
+
+/* ── Confidence (anchored right) ──────────────────────────── */
+
+.confidence-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.confidence-group[hidden] {
+    display: none;
+}
+
+.confidence-group .sep {
+    margin-right: 0.1rem;
+}
+
+#threshold-slider {
+    width: 72px;
+    accent-color: var(--amber);
+    height: 2px;
+    flex-shrink: 0;
+}
+
+#threshold-value {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    min-width: 2em;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+/* ── Status Section (stacked, cancel inline) ──────────────── */
+
+.status-section {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.status-section.visible { opacity: 1; }
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.1rem;
+}
+
+#status-text {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.cancel-btn {
+    font-family: inherit;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.cancel-btn:hover { border-color: #b44; color: #b44; }
+.cancel-btn.hidden { display: none; }
+
+.count-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+}
+
+.count-marker {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+}
+
+.count-marker.animal { background: var(--sage); }
+.count-marker.person { background: var(--blue); }
+.count-marker.vehicle { background: var(--amber); }
+.count-marker.empty { background: var(--empty-gray); opacity: 0.5; }
+
+.count-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Control Group (used in results header) ───────────────── */
 
 .control-group {
     display: flex;
@@ -139,35 +410,7 @@ header h1 {
     display: none;
 }
 
-.toggle-label {
-    color: var(--text-muted);
-}
-
-.toggle-btn {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.55rem;
-    border: 1px solid var(--border-light);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.12s;
-}
-
-.toggle-btn:hover {
-    color: var(--text);
-    border-color: var(--text-secondary);
-}
-
-.toggle-btn.active {
-    background: var(--text);
-    color: var(--bg);
-    border-color: var(--text);
-}
-
-/* Filter buttons — checkbox style via pseudo-element */
+/* ── Filter Buttons (checkbox style) ──────────────────────── */
 
 .filter-btn {
     display: inline-flex;
@@ -189,7 +432,6 @@ header h1 {
     border-color: var(--text);
 }
 
-/* Category-specific checkbox colors */
 .filter-btn.active[data-category="animal"]::before {
     background: var(--sage);
     border-color: var(--sage);
@@ -210,7 +452,6 @@ header h1 {
     border-color: var(--empty-gray);
 }
 
-/* When filter-btn is active, use a subtler background than the default toggle */
 .filter-btn.active {
     background: transparent;
     color: var(--text);
@@ -221,69 +462,10 @@ header h1 {
     border-color: var(--text-secondary);
 }
 
-/* Info tip */
-
-.info-tip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--border-light);
-    font-size: 0.6rem;
-    color: var(--text-muted);
-    cursor: help;
-    position: relative;
-    flex-shrink: 0;
-}
-
-.info-tip::after {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    right: -4px;
-    background: var(--text);
-    color: var(--bg);
-    font-size: 0.65rem;
-    line-height: 1.5;
-    padding: 0.5rem 0.65rem;
-    white-space: pre-line;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-    z-index: 20;
-    width: max-content;
-    max-width: 220px;
-}
-
-.info-tip:hover::after {
-    opacity: 1;
-}
-
-/* Confidence slider */
-
-#threshold-control {
-    gap: 0.4rem;
-}
-
-#threshold-slider {
-    width: 80px;
-    accent-color: var(--amber);
-    height: 2px;
-}
-
-#threshold-value {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-    min-width: 2em;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── Action Buttons ────────────────────────────────────────── */
+/* ── Action Buttons ───────────────────────────────────────── */
 
 .action-btn {
+    font-family: inherit;
     font-size: 0.65rem;
     font-weight: 500;
     letter-spacing: 0.06em;
@@ -312,84 +494,12 @@ header h1 {
 }
 
 .action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    opacity: 0.4;
+    cursor: default;
 }
 
-.action-btn:disabled:hover {
-    background: transparent;
-    color: var(--amber);
-}
-
-.action-btn[hidden] {
-    display: none;
-}
-
-/* ── Status Bar ────────────────────────────────────────────── */
-
-#status-bar {
-    margin-top: 1rem;
-    padding: 0.6rem 0;
-}
-
-#status-bar[hidden] {
-    display: none;
-}
-
-#status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.35rem;
-}
-
-#status-text {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    letter-spacing: 0.02em;
-}
-
-.cancel-btn {
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 0.15rem 0.5rem;
-    border: 1px solid var(--border-light);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-}
-
-.cancel-btn:hover {
-    border-color: #b44;
-    color: #b44;
-}
-
-.cancel-btn[hidden] {
-    display: none;
-}
-
-#progress-track {
-    height: 2px;
-    background: var(--border-light);
-    overflow: hidden;
-}
-
-#progress-fill {
-    height: 100%;
-    width: 0%;
-    background: var(--amber);
-    transition: width 0.2s ease-out;
-}
-
-#status-counts {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-top: 0.35rem;
-    letter-spacing: 0.02em;
-}
+.action-btn[hidden] { display: none; }
+.action-btn.hidden { display: none; }
 
 /* ── Results ───────────────────────────────────────────────── */
 
@@ -499,7 +609,6 @@ header h1 {
     filter: grayscale(0.3);
 }
 
-/* Override opacity for settled empty cards (animation sets opacity: 1) */
 .result-card.settled.empty,
 .result-card.settled.cat-empty {
     opacity: 0.55;

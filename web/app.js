@@ -55,27 +55,87 @@ const state = {
 
 const sortControls = document.getElementById('sort-controls');
 const filterControls = document.getElementById('filter-controls');
-const thresholdControl = document.getElementById('threshold-control');
+const confidenceGroup = document.querySelector('[data-testid="confidence-group"]');
 const thresholdSlider = document.getElementById('threshold-slider');
 const thresholdValue = document.getElementById('threshold-value');
 const exportCsvBtn = document.getElementById('export-csv-btn');
 const speciesBtn = document.getElementById('species-btn');
 const clearBtn = document.getElementById('clear-btn');
-const folderBtn = document.getElementById('folder-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const dropZone = document.getElementById('drop-zone');
+const dropInner = document.getElementById('drop-inner');
+const dropText = document.getElementById('drop-text');
 const dropZonePrimary = dropZone.querySelector('.drop-zone-primary');
 const dropZoneSecondary = dropZone.querySelector('.drop-zone-secondary');
+const convergenceContainer = document.getElementById('convergence');
 const fileInput = document.getElementById('file-input');
 const statusBar = document.getElementById('status-bar');
 const statusText = document.getElementById('status-text');
-const progressFill = document.getElementById('progress-fill');
-const statusCounts = document.getElementById('status-counts');
+const countAnimal = document.getElementById('count-animal');
+const countPerson = document.getElementById('count-person');
+const countVehicle = document.getElementById('count-vehicle');
+const countEmpty = document.getElementById('count-empty');
 const resultsSection = document.getElementById('results');
 const resultsSummary = document.getElementById('results-summary');
 const resultsGrid = document.getElementById('results-grid');
 const exportBtn = document.getElementById('export-btn');
 const objectUrls = new Map();
+
+// ── Convergence particles ───────────────────────────────────────
+
+const PARTICLE_COUNT = 28;
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 35 + Math.random() * 25;
+    const dur = 1.8 + Math.random() * 1.2;
+    p.style.cssText = `
+        --sx: ${Math.cos(angle) * dist}px;
+        --sy: ${Math.sin(angle) * dist}px;
+        --delay: ${Math.random() * 2.5}s;
+        --dur: ${dur}s;
+    `;
+    convergenceContainer.appendChild(p);
+}
+
+let convergenceTimers = [];
+
+function clearConvergenceTimers() {
+    for (const id of convergenceTimers) clearTimeout(id);
+    convergenceTimers = [];
+}
+
+function startConvergence() {
+    clearConvergenceTimers();
+    dropText.classList.add('hidden');
+    convergenceContainer.classList.remove('fading');
+
+    convergenceTimers.push(
+        setTimeout(() => dropZone.classList.add('processing'), 100),
+        setTimeout(() => {
+            dropInner.classList.add('pulsing');
+            convergenceContainer.classList.add('active');
+        }, 700)
+    );
+}
+
+function stopConvergence() {
+    clearConvergenceTimers();
+
+    dropInner.classList.remove('pulsing');
+    convergenceContainer.classList.add('fading');
+
+    convergenceTimers.push(
+        setTimeout(() => {
+            convergenceContainer.classList.remove('active', 'fading');
+            dropZone.classList.remove('processing');
+            convergenceTimers.push(
+                setTimeout(() => dropText.classList.remove('hidden'), 650)
+            );
+        }, 450)
+    );
+}
 
 // ── Model loading ──────────────────────────────────────────────
 
@@ -374,9 +434,9 @@ function addFiles(files) {
     }
 
     state.totalImages += imageFiles.length;
-    statusBar.hidden = false;
+    statusBar.classList.add('visible');
     resultsSection.hidden = false;
-    dropZone.classList.add('compact');
+    startConvergence();
     updateProgress();
 
     if (state.modelReady && !state.processing) processNext();
@@ -404,23 +464,21 @@ async function processNext() {
 
 // ── Drop zone events ───────────────────────────────────────────
 
-dropZone.addEventListener('click', async () => {
-    if (IS_TAURI) {
-        // Native file dialog — returns paths, no byte serialization overhead
-        const result = await invoke('plugin:dialog|open', {
-            options: {
-                multiple: true,
-                title: 'Select images',
-                filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'tiff', 'tif'] }]
-            }
-        });
-        if (!result) return;
-        const paths = Array.isArray(result) ? result : [result];
-        if (paths.length === 0) return;
+dropZone.addEventListener('click', async (e) => {
+    // Only respond to clicks on the drop zone inner area, not the convergence container
+    if (dropZone.classList.contains('processing')) return;
 
-        const total = await invoke('process_paths', { paths, inputSize: INPUT_SIZE, model: MODEL_TYPE });
+    if (IS_TAURI) {
+        // Folder picker — drag-and-drop covers files, click = folder
+        const folder = await invoke('plugin:dialog|open', {
+            options: { directory: true, title: 'Select image folder' }
+        });
+        if (!folder) return;
+
+        const folderName = folder.split('/').filter(Boolean).pop() || folder;
+        const total = await invoke('process_paths', { paths: [folder], inputSize: INPUT_SIZE, model: MODEL_TYPE });
         if (total === 0) return;
-        startBatch(total, paths.length === 1 ? paths[0].split('/').filter(Boolean).pop() : `${paths.length} files`);
+        startBatch(total, folderName);
     } else {
         fileInput.click();
     }
@@ -708,30 +766,42 @@ function countVisibleAnimals() {
     return count;
 }
 
+function updateCategoryCounts() {
+    const counts = { animal: 0, person: 0, vehicle: 0, empty: 0 };
+    for (const r of state.results) {
+        const cat = cardCategory(r);
+        counts[cat]++;
+    }
+    countAnimal.textContent = counts.animal;
+    countPerson.textContent = counts.person;
+    countVehicle.textContent = counts.vehicle;
+    countEmpty.textContent = counts.empty;
+}
+
 function updateProgress() {
     const { processedImages, totalImages } = state;
     const done = processedImages >= totalImages && totalImages > 0;
 
     if (done) {
         statusText.textContent = 'Done';
-        progressFill.style.width = '100%';
-        cancelBtn.hidden = true;
+        cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
         clearBtn.hidden = false;
         sortControls.hidden = false;
         filterControls.hidden = false;
-        thresholdControl.hidden = false;
-        // Show species button if Tauri + animal detections exist + not already done
+        confidenceGroup.hidden = false;
+        stopConvergence();
         if (IS_TAURI && state.speciesStatus === 'idle' && hasAnimalDetections()) {
             speciesBtn.hidden = false;
         }
     } else if (totalImages > 0) {
         const name = state.folderName ? ` \u2014 ${state.folderName}` : '';
         statusText.textContent = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
-        progressFill.style.width = `${(processedImages / totalImages) * 100}%`;
-        if (state.batchActive) cancelBtn.hidden = false;
+        if (state.batchActive) cancelBtn.classList.remove('hidden');
     }
+
+    updateCategoryCounts();
 
     const animalCount = countVisibleAnimals();
     const parts = [`${processedImages} of ${totalImages} images`];
@@ -740,12 +810,6 @@ function updateProgress() {
         parts.push(`${state.speciesProcessed} species identified`);
     }
     resultsSummary.textContent = parts.join(' \u00b7 ');
-
-    if (done) {
-        statusCounts.textContent = '';
-    } else {
-        statusCounts.textContent = parts.join(' \u00b7 ');
-    }
 }
 
 // ── Sorting ─────────────────────────────────────────────────────
@@ -908,9 +972,9 @@ function startSpeciesClassification() {
 
     speciesBtn.disabled = true;
     speciesBtn.textContent = 'Identifying\u2026';
-    statusBar.hidden = false;
+    statusBar.classList.add('visible');
     statusText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
-    progressFill.style.width = '0%';
+    startConvergence();
 
     invoke('classify_detections', { requests }).catch(err => {
         console.error('[spoor] Species classification failed:', err);
@@ -959,25 +1023,35 @@ function clearResults() {
     // Clear DOM
     resultsGrid.innerHTML = '';
     resultsSection.hidden = true;
-    statusBar.hidden = true;
-    dropZone.classList.remove('compact');
-    progressFill.style.width = '0%';
+    statusBar.classList.remove('visible');
     statusText.textContent = '';
-    statusCounts.textContent = '';
     resultsSummary.textContent = '';
+
+    // Reset convergence
+    clearConvergenceTimers();
+    dropZone.classList.remove('processing');
+    dropInner.classList.remove('pulsing');
+    convergenceContainer.classList.remove('active', 'fading');
+    dropText.classList.remove('hidden');
+
+    // Reset category counts
+    countAnimal.textContent = '0';
+    countPerson.textContent = '0';
+    countVehicle.textContent = '0';
+    countEmpty.textContent = '0';
 
     // Hide controls
     sortControls.hidden = true;
     filterControls.hidden = true;
-    thresholdControl.hidden = true;
+    confidenceGroup.hidden = true;
     exportBtn.hidden = true;
     exportCsvBtn.hidden = true;
     speciesBtn.hidden = true;
     speciesBtn.disabled = false;
     speciesBtn.textContent = 'Identify species';
     clearBtn.hidden = true;
-    cancelBtn.hidden = true;
-    folderBtn.disabled = false;
+    cancelBtn.classList.add('hidden');
+    cancelBtn.disabled = false;
 
     // Reset sort buttons
     for (const btn of document.querySelectorAll('.sort-btn')) {
@@ -989,13 +1063,13 @@ clearBtn.addEventListener('click', clearResults);
 
 // ── Model toggle (desktop only) ─────────────────────────────────
 
-const modelToggle = document.getElementById('model-toggle');
+const modelGroup = document.querySelector('[data-testid="model-group"]');
 const modelQuickBtn = document.getElementById('model-quick');
 const modelThoroughBtn = document.getElementById('model-thorough');
-const resolutionToggle = document.getElementById('resolution-toggle');
+const resGroup = document.getElementById('res-group');
 
 if (IS_TAURI) {
-    modelToggle.hidden = false;
+    modelGroup.hidden = false;
 }
 
 modelQuickBtn.addEventListener('click', () => {
@@ -1003,14 +1077,14 @@ modelQuickBtn.addEventListener('click', () => {
     modelThoroughBtn.classList.remove('active');
     MODEL_TYPE = 'quick';
     INPUT_SIZE = 1280; // Quick always runs at 1280 — it's fast enough
-    resolutionToggle.hidden = true;
+    resGroup.classList.add('hidden');
 });
 
 modelThoroughBtn.addEventListener('click', () => {
     modelThoroughBtn.classList.add('active');
     modelQuickBtn.classList.remove('active');
     MODEL_TYPE = 'thorough';
-    resolutionToggle.hidden = false;
+    resGroup.classList.remove('hidden');
     // Restore resolution from toggle state
     INPUT_SIZE = resFast.classList.contains('active') ? 640 : 1280;
 });
@@ -1051,18 +1125,17 @@ function startBatch(total, folderName) {
     state.totalImages += total;
     state.batchActive = true;
     state.folderName = folderName;
-    statusBar.hidden = false;
+    statusBar.classList.add('visible');
     resultsSection.hidden = false;
-    dropZone.classList.add('compact');
-    folderBtn.disabled = true;
+    startConvergence();
     updateProgress();
 }
 
 function endBatch() {
     state.batchActive = false;
     state.folderName = null;
-    cancelBtn.hidden = true;
-    folderBtn.disabled = false;
+    cancelBtn.classList.add('hidden');
+    cancelBtn.disabled = false;
 }
 
 // ── Folder selection & batch events (Tauri only) ────────────────
@@ -1078,28 +1151,10 @@ if (IS_TAURI) {
         });
     }
 
-    folderBtn.hidden = false;
-
-    // ── Folder button ───────────────────────────────────────────
-    folderBtn.addEventListener('click', async () => {
-        const folder = await invoke('plugin:dialog|open', {
-            options: { directory: true, title: 'Select image folder' }
-        });
-        if (!folder) return;
-
-        const folderName = folder.split('/').filter(Boolean).pop() || folder;
-        const total = await invoke('process_folder', {
-            folderPath: folder,
-            inputSize: INPUT_SIZE,
-            model: MODEL_TYPE
-        });
-        if (total === 0) return;
-
-        startBatch(total, folderName);
-    });
-
     // ── Cancel button ───────────────────────────────────────────
     cancelBtn.addEventListener('click', async () => {
+        cancelBtn.disabled = true;
+        statusText.textContent = 'Cancelling\u2026';
         await invoke('cancel_processing');
     });
 
@@ -1151,7 +1206,7 @@ if (IS_TAURI) {
         state.totalImages = state.processedImages;
         endBatch();
 
-        progressFill.style.width = '100%';
+        stopConvergence();
         statusText.textContent = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
 
         if (state.results.length > 0) {
@@ -1160,7 +1215,7 @@ if (IS_TAURI) {
             clearBtn.hidden = false;
             sortControls.hidden = false;
             filterControls.hidden = false;
-            thresholdControl.hidden = false;
+            confidenceGroup.hidden = false;
             if (state.speciesStatus === 'idle' && hasAnimalDetections()) {
                 speciesBtn.hidden = false;
             }
@@ -1196,8 +1251,6 @@ if (IS_TAURI) {
         }
 
         state.speciesProcessed++;
-        const pct = (state.speciesProcessed / state.speciesTotal) * 100;
-        progressFill.style.width = `${pct}%`;
         statusText.textContent = state.speciesProcessed < state.speciesTotal
             ? `Identifying species ${state.speciesProcessed + 1} of ${state.speciesTotal}\u2026`
             : 'Finishing species identification\u2026';
@@ -1210,15 +1263,13 @@ if (IS_TAURI) {
     tauriListen('species-error', (payload) => {
         console.error('[spoor] Species error:', payload.imagePath, payload.error);
         state.speciesProcessed++;
-        const pct = (state.speciesProcessed / state.speciesTotal) * 100;
-        progressFill.style.width = `${pct}%`;
     });
 
     tauriListen('species-complete', () => {
         state.speciesStatus = 'done';
         speciesBtn.textContent = 'Species identified';
         speciesBtn.disabled = true;
-        statusBar.hidden = true;
+        stopConvergence();
         updateProgress(); // refresh resultsSummary with species count
     });
 
@@ -1227,5 +1278,6 @@ if (IS_TAURI) {
         speciesBtn.disabled = false;
         speciesBtn.textContent = 'Identify species';
         statusText.textContent = 'Species identification cancelled';
+        stopConvergence();
     });
 }
