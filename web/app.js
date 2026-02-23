@@ -1069,10 +1069,10 @@ const modelThoroughBtn = document.getElementById('model-thorough');
 const resGroup = document.getElementById('res-group');
 
 if (IS_TAURI) {
-    modelGroup.hidden = false;
-} else {
-    // Web: MDv6 only, fixed 1280 input — hide resolution toggle
-    resGroup.classList.add('hidden');
+    modelThoroughBtn.hidden = false;
+    modelThoroughBtn.classList.add('active');
+    modelQuickBtn.classList.remove('active');
+    resGroup.classList.remove('hidden');
 }
 
 modelQuickBtn.addEventListener('click', () => {
