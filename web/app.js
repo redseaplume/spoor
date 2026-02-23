@@ -79,6 +79,7 @@ const resultsSection = document.getElementById('results');
 const resultsSummary = document.getElementById('results-summary');
 const resultsGrid = document.getElementById('results-grid');
 const exportBtn = document.getElementById('export-btn');
+const exportImagesBtn = document.getElementById('export-images-btn');
 const objectUrls = new Map();
 
 // ── Convergence particles ───────────────────────────────────────
@@ -453,6 +454,7 @@ async function processNext() {
 
     try {
         const result = await infer(item.id, item.file);
+        result.file = item.file; // retain for image export
         handleResult(result);
     } catch (err) {
         console.error('Inference error:', item.file.name, err);
@@ -787,6 +789,7 @@ function updateProgress() {
         cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
+        if (!IS_TAURI) exportImagesBtn.hidden = false;
         clearBtn.hidden = false;
         sortControls.hidden = false;
         filterControls.hidden = false;
@@ -936,6 +939,61 @@ function exportCSV() {
 exportBtn.addEventListener('click', exportJSON);
 exportCsvBtn.addEventListener('click', exportCSV);
 
+// ── Export: Annotated images (web only) ────────────────────────
+
+async function exportImages() {
+    const results = state.results
+        .filter(r => r.file && !r.cardElement.hidden)
+        .map(r => ({
+            file: r.file,
+            fileName: r.fileName,
+            origWidth: r.origWidth,
+            origHeight: r.origHeight,
+            detections: visibleDetections(r).map(d => ({
+                bbox: d.bbox,
+                confidence: d.confidence,
+                category: d.category,
+                categoryName: d.categoryName,
+                species: d.species ? { commonName: d.species.commonName } : null
+            }))
+        }));
+
+    if (results.length === 0) return;
+
+    exportImagesBtn.disabled = true;
+    exportImagesBtn.textContent = 'Exporting\u2026';
+
+    const worker = new Worker('export-worker.js');
+    worker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === 'progress') {
+            exportImagesBtn.textContent = `Exporting ${msg.current}/${msg.total}\u2026`;
+        } else if (msg.type === 'done') {
+            const url = URL.createObjectURL(msg.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = state.folderName
+                ? `spoor_${state.folderName}.zip`
+                : 'spoor_images.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            exportImagesBtn.disabled = false;
+            exportImagesBtn.textContent = 'Images';
+            worker.terminate();
+        } else if (msg.type === 'error') {
+            console.error('[spoor] Image export failed:', msg.error);
+            exportImagesBtn.disabled = false;
+            exportImagesBtn.textContent = 'Images';
+            worker.terminate();
+        }
+    };
+
+    worker.postMessage({ results });
+}
+
+exportImagesBtn.addEventListener('click', exportImages);
+
 // ── Species identification (Tauri only) ────────────────────────
 
 function hasAnimalDetections() {
@@ -1046,6 +1104,7 @@ function clearResults() {
     confidenceGroup.hidden = true;
     exportBtn.hidden = true;
     exportCsvBtn.hidden = true;
+    exportImagesBtn.hidden = true;
     speciesBtn.hidden = true;
     speciesBtn.disabled = false;
     speciesBtn.textContent = 'Identify species';
@@ -1215,6 +1274,7 @@ if (IS_TAURI) {
         if (state.results.length > 0) {
             exportBtn.hidden = false;
             exportCsvBtn.hidden = false;
+            if (!IS_TAURI) exportImagesBtn.hidden = false;
             clearBtn.hidden = false;
             sortControls.hidden = false;
             filterControls.hidden = false;
