@@ -23,6 +23,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Download model for web
+        run: |
+          mkdir -p web/models
+          gh release download models-v1 --pattern mdv6-yolov10-c.onnx --dir web/models
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

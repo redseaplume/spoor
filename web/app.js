@@ -4,9 +4,7 @@
 const IS_TAURI = !!window.__TAURI_INTERNALS__;
 const invoke = IS_TAURI ? window.__TAURI_INTERNALS__.invoke : null;
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist';
-const MODEL_URL = IS_TAURI
-    ? '/models/mdv6-yolov10-c.onnx'
-    : 'https://github.com/redseaplume/spoor/releases/download/models-v1/mdv6-yolov10-c.onnx';
+const MODEL_URL = 'models/mdv6-yolov10-c.onnx';
 const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
