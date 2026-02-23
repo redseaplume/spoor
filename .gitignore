@@ -20,6 +20,15 @@ src-tauri/gen/
 !scripts/
 !scripts/**
 
+# Tests
+!tests/
+!tests/**
+!playwright.config.ts
+!package.json
+!tsconfig.json
+!bun.lock
+test-results/
+
 # Web frontend (served by Tauri)
 !web/
 !web/**
