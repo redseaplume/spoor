@@ -4,12 +4,25 @@
 const IS_TAURI = !!window.__TAURI_INTERNALS__;
 const invoke = IS_TAURI ? window.__TAURI_INTERNALS__.invoke : null;
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist';
-const MODEL_URL = 'models/mdv6-yolov10-c.onnx';
+const MODEL_URL = '../models/mdv6-yolov10-c.onnx';
 const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 const CATEGORIES = { 0: 'animal', 1: 'person', 2: 'vehicle' };
 const CATEGORY_COLORS = { 0: '#5a7a52', 1: '#4a6a9a', 2: '#b06a28' };
+
+// Redraw bbox canvases when image containers resize
+const bboxObserver = new ResizeObserver((entries) => {
+    if (bboxObserver._rafPending) return;
+    bboxObserver._rafPending = true;
+    requestAnimationFrame(() => {
+        bboxObserver._rafPending = false;
+        for (const entry of entries) {
+            const result = entry.target._spoorResult;
+            if (result) drawBboxes(result);
+        }
+    });
+});
 
 // MDv6 is fast enough at 1280 for both native and web
 let INPUT_SIZE = 1280;
@@ -43,6 +56,7 @@ const state = {
     displayThreshold: 0.2,
     visibleCategories: new Set(['animal', 'person', 'vehicle', 'empty']),
     folderName: null,
+    folderPath: null,
     batchActive: false,
     // Species classification
     speciesStatus: 'idle', // 'idle' | 'running' | 'done'
@@ -477,6 +491,7 @@ dropZone.addEventListener('click', async (e) => {
         });
         if (!folder) return;
 
+        state.folderPath = folder;
         const folderName = folder.split('/').filter(Boolean).pop() || folder;
         const total = await invoke('process_paths', { paths: [folder], inputSize: INPUT_SIZE, model: MODEL_TYPE });
         if (total === 0) return;
@@ -698,6 +713,9 @@ function renderCard(result) {
     result.imgElement = img;
     result.bboxCanvas = bboxCanvas;
 
+    container._spoorResult = result;
+    bboxObserver.observe(container);
+
     img.onload = () => {
         img.classList.add('loaded');
         drawBboxes(result);
@@ -789,7 +807,7 @@ function updateProgress() {
         cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
-        if (!IS_TAURI) exportImagesBtn.hidden = false;
+        exportImagesBtn.hidden = false;
         clearBtn.hidden = false;
         sortControls.hidden = false;
         filterControls.hidden = false;
@@ -939,9 +957,62 @@ function exportCSV() {
 exportBtn.addEventListener('click', exportJSON);
 exportCsvBtn.addEventListener('click', exportCSV);
 
-// ── Export: Annotated images (web only) ────────────────────────
+// ── Export: Annotated images ───────────────────────────────────
 
 async function exportImages() {
+    if (IS_TAURI) {
+        await exportImagesTauri();
+    } else {
+        await exportImagesWeb();
+    }
+}
+
+async function exportImagesTauri() {
+    // Pick output directory
+    const outputDir = await invoke('plugin:dialog|open', {
+        options: { directory: true, title: 'Choose output folder for annotated images' }
+    });
+    if (!outputDir) return;
+
+    const items = state.results
+        .filter(r => r.nativePath && !r.cardElement.hidden)
+        .map(r => ({
+            filePath: r.nativePath,
+            detections: visibleDetections(r).map(d => ({
+                bbox: d.bboxNorm,
+                confidence: d.confidence,
+                category: d.categoryName || CATEGORIES[d.category] || 'unknown',
+                species: d.species ? d.species.commonName : null
+            }))
+        }));
+
+    if (items.length === 0) return;
+
+    exportImagesBtn.disabled = true;
+    exportImagesBtn.textContent = 'Exporting\u2026';
+
+    let total;
+    try {
+        total = await invoke('export_images', {
+            outputDir,
+            items,
+            baseDir: state.folderPath || null
+        });
+    } catch (e) {
+        console.error('[spoor] Export invoke failed:', e);
+        exportImagesBtn.disabled = false;
+        exportImagesBtn.textContent = 'Images';
+        return;
+    }
+
+    if (total === 0) {
+        exportImagesBtn.disabled = false;
+        exportImagesBtn.textContent = 'Images';
+    }
+    // Progress and completion handled by event listeners (set up in Tauri block below)
+}
+
+async function exportImagesWeb() {
     const results = state.results
         .filter(r => r.file && !r.cardElement.hidden)
         .map(r => ({
@@ -1072,11 +1143,15 @@ function clearResults() {
     state.processedImages = 0;
     state.sortBy = 'processing';
     state.folderName = null;
+    state.folderPath = null;
     state.batchActive = false;
     state.speciesStatus = 'idle';
     state.speciesMap = [];
     state.speciesTotal = 0;
     state.speciesProcessed = 0;
+
+    // Stop observing resizes
+    bboxObserver.disconnect();
 
     // Clear DOM
     resultsGrid.innerHTML = '';
@@ -1196,6 +1271,7 @@ function startBatch(total, folderName) {
 function endBatch() {
     state.batchActive = false;
     state.folderName = null;
+    state.folderPath = null;
     cancelBtn.classList.add('hidden');
     cancelBtn.disabled = false;
 }
@@ -1274,7 +1350,7 @@ if (IS_TAURI) {
         if (state.results.length > 0) {
             exportBtn.hidden = false;
             exportCsvBtn.hidden = false;
-            if (!IS_TAURI) exportImagesBtn.hidden = false;
+            exportImagesBtn.hidden = false;
             clearBtn.hidden = false;
             sortControls.hidden = false;
             filterControls.hidden = false;
@@ -1283,6 +1359,30 @@ if (IS_TAURI) {
                 speciesBtn.hidden = false;
             }
         }
+    });
+
+    // ── Image export events ────────────────────────────────────
+    tauriListen('export-progress', (payload) => {
+        exportImagesBtn.textContent = `Exporting ${payload.current}/${payload.total}\u2026`;
+    });
+
+    tauriListen('export-complete', (payload) => {
+        exportImagesBtn.disabled = false;
+        exportImagesBtn.textContent = 'Images';
+        const msg = payload.errors > 0
+            ? `Exported ${payload.total - payload.errors}/${payload.total} images (${payload.errors} failed)`
+            : `Exported ${payload.total} images`;
+        statusText.textContent = msg;
+    });
+
+    tauriListen('export-error', (payload) => {
+        console.error('[spoor] Export error:', payload.filePath, payload.error);
+    });
+
+    tauriListen('export-cancelled', () => {
+        exportImagesBtn.disabled = false;
+        exportImagesBtn.textContent = 'Images';
+        statusText.textContent = 'Export cancelled';
     });
 
     // ── Species classification events ───────────────────────────

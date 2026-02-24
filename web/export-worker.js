@@ -9,19 +9,7 @@ const JPEG_QUALITY = 0.92;
 self.onmessage = async (e) => {
     const { results } = e.data;
     const total = results.length;
-    const chunks = [];
-
-    const zip = new fflate.Zip((err, data, final) => {
-        if (err) {
-            self.postMessage({ type: 'error', error: err.message });
-            return;
-        }
-        chunks.push(data);
-        if (final) {
-            const blob = new Blob(chunks, { type: 'application/zip' });
-            self.postMessage({ type: 'done', blob });
-        }
-    });
+    const files = {};
 
     for (let i = 0; i < total; i++) {
         const r = results[i];
@@ -73,9 +61,7 @@ self.onmessage = async (e) => {
             const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
             const jpegData = new Uint8Array(await blob.arrayBuffer());
 
-            const file = new fflate.ZipPassThrough(r.fileName);
-            zip.add(file);
-            file.push(jpegData, true);
+            files[r.fileName] = [jpegData, { level: 0 }];
         } catch (err) {
             console.error(`[export-worker] Failed: ${r.fileName}:`, err);
         }
@@ -83,5 +69,7 @@ self.onmessage = async (e) => {
         self.postMessage({ type: 'progress', current: i + 1, total });
     }
 
-    zip.end();
+    const zipData = fflate.zipSync(files);
+    const blob = new Blob([zipData], { type: 'application/zip' });
+    self.postMessage({ type: 'done', blob });
 };

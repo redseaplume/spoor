@@ -618,6 +618,7 @@ header h1 {
 .image-container {
     position: relative;
     line-height: 0;
+    overflow: hidden;
     background: var(--bg-hover);
     min-height: 80px;
 }
