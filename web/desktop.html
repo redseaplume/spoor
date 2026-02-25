@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>spoor</title>
+    <link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+    <!-- Toolbar -->
+    <div class="toolbar" data-testid="controls">
+        <span class="label">Model</span>
+        <div class="seg" data-testid="model-group">
+            <button id="model-quick" data-testid="model-quick">Quick (MDv6)</button>
+            <button id="model-thorough" class="active" data-testid="model-thorough">Thorough (MDv5a)</button>
+        </div>
+        <div class="sep" id="sep-res"></div>
+        <div class="seg" id="res-group" data-testid="resolution-group">
+            <button id="res-fast" data-testid="res-fast">Fast (640)</button>
+            <button id="res-accurate" class="active" data-testid="res-accurate">Accurate (1280)</button>
+        </div>
+        <div class="toolbar-spacer"></div>
+        <div class="conf-grp" id="conf-grp" data-testid="confidence-group" hidden>
+            <span class="label">Confidence</span>
+            <input type="range" class="slider" id="threshold-slider" data-testid="confidence-slider" min="0.05" max="0.95" step="0.05" value="0.2">
+            <span class="slider-v" id="threshold-value" data-testid="confidence-value">20%</span>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <!-- Top row: centered drop zone in ready state, collapsed left during processing -->
+        <div class="top-row" id="top-row">
+            <div class="dz" id="drop-zone" data-testid="drop-zone">
+                <div class="dz-inner" id="drop-inner">
+                    <div class="dz-text" id="drop-text">
+                        <p class="dz-primary drop-zone-primary">Drop images or folders here</p>
+                        <p class="dz-secondary drop-zone-secondary">or click to select a folder</p>
+                    </div>
+                </div>
+                <div class="conv" id="convergence"></div>
+                <input type="file" id="file-input" webkitdirectory hidden>
+            </div>
+            <div class="proc-info" id="proc-info">
+                <span class="proc-text" id="proc-text"></span>
+                <button class="abtn cancel" id="cancel-btn">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results" hidden>
+            <div class="results-hdr" id="results-header">
+                <span class="results-summary" id="results-summary"></span>
+                <div class="results-ctrls" id="results-controls">
+                    <div id="sort-controls" class="control-group" hidden>
+                        <span class="label">Sort</span>
+                        <div class="seg seg-sort">
+                            <button class="sort-btn active" data-sort="processing">Order</button>
+                            <button class="sort-btn" data-sort="confidence">Confidence</button>
+                            <button class="sort-btn" data-sort="filename">Filename</button>
+                        </div>
+                    </div>
+                    <div id="filter-controls" class="control-group" hidden>
+                        <div class="sep"></div>
+                        <span class="label">Show</span>
+                        <div class="seg">
+                            <button class="filter-btn fbtn active" data-category="animal">Animal</button>
+                            <button class="filter-btn fbtn active" data-category="person">Person</button>
+                            <button class="filter-btn fbtn active" data-category="vehicle">Vehicle</button>
+                            <button class="filter-btn fbtn active" data-category="empty">Empty</button>
+                        </div>
+                        <div class="sep"></div>
+                    </div>
+                    <button class="abtn pri" id="species-btn" data-testid="species-btn" hidden>Species</button>
+                    <button class="abtn" id="export-btn" hidden>JSON</button>
+                    <button class="abtn" id="export-csv-btn" hidden>CSV</button>
+                    <button class="abtn" id="export-images-btn" hidden>Images</button>
+                    <button class="abtn" id="clear-btn" hidden>Clear</button>
+                </div>
+            </div>
+            <div class="results-scroll">
+                <div class="results-grid" id="results-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="sbar" id="status-bar">
+        <div class="cg">
+            <div class="ci"><span class="cd animal"></span> <span id="count-animal">0</span> animal</div>
+            <div class="ci"><span class="cd person"></span> <span id="count-person">0</span> person</div>
+            <div class="ci"><span class="cd vehicle"></span> <span id="count-vehicle">0</span> vehicle</div>
+            <div class="ci"><span class="cd empty"></span> <span id="count-empty">0</span> empty</div>
+        </div>
+        <div class="sp"></div>
+        <span class="st" id="status-text">Loading model…</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js" onerror="console.log('[spoor] ONNX Runtime Web not loaded (expected in desktop mode)')"></script>
+    <script src="app.js"></script>
+</body>
+</html>

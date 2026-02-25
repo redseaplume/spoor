@@ -96,6 +96,11 @@ const exportBtn = document.getElementById('export-btn');
 const exportImagesBtn = document.getElementById('export-images-btn');
 const objectUrls = new Map();
 
+// ── Desktop-only DOM refs ─────────────────────────────────────────
+const topRow = document.getElementById('top-row');
+const procInfo = document.getElementById('proc-info');
+const procText = document.getElementById('proc-text');
+
 // ── Convergence particles ───────────────────────────────────────
 
 const PARTICLE_COUNT = 28;
@@ -123,16 +128,35 @@ function clearConvergenceTimers() {
 
 function startConvergence() {
     clearConvergenceTimers();
-    dropText.classList.add('hidden');
-    convergenceContainer.classList.remove('fading');
 
-    convergenceTimers.push(
-        setTimeout(() => dropZone.classList.add('processing'), 100),
-        setTimeout(() => {
-            dropInner.classList.add('pulsing');
-            convergenceContainer.classList.add('active');
-        }, 700)
-    );
+    if (IS_TAURI) {
+        // Desktop: collapse top-row, corner the drop zone, show proc-info
+        dropText.classList.add('faded');
+        if (topRow) topRow.classList.add('collapsed');
+        dropZone.classList.add('at-corner');
+        convergenceContainer.classList.remove('fading');
+        convergenceTimers.push(
+            setTimeout(() => {
+                dropInner.classList.add('processing');
+                if (procInfo) procInfo.classList.add('visible');
+            }, 100),
+            setTimeout(() => {
+                dropInner.classList.add('pulsing');
+                convergenceContainer.classList.add('active');
+            }, 600)
+        );
+    } else {
+        // Web: existing behavior
+        dropText.classList.add('hidden');
+        convergenceContainer.classList.remove('fading');
+        convergenceTimers.push(
+            setTimeout(() => dropZone.classList.add('processing'), 100),
+            setTimeout(() => {
+                dropInner.classList.add('pulsing');
+                convergenceContainer.classList.add('active');
+            }, 700)
+        );
+    }
 }
 
 function stopConvergence() {
@@ -144,10 +168,15 @@ function stopConvergence() {
     convergenceTimers.push(
         setTimeout(() => {
             convergenceContainer.classList.remove('active', 'fading');
-            dropZone.classList.remove('processing');
-            convergenceTimers.push(
-                setTimeout(() => dropText.classList.remove('hidden'), 650)
-            );
+            if (IS_TAURI) {
+                // Desktop: keep layout collapsed, just stop animation
+                // proc-info stays visible, top-row stays collapsed
+            } else {
+                dropZone.classList.remove('processing');
+                convergenceTimers.push(
+                    setTimeout(() => dropText.classList.remove('hidden'), 650)
+                );
+            }
         }, 450)
     );
 }
@@ -199,6 +228,7 @@ async function loadModel() {
     });
 
     state.modelReady = true;
+    statusText.textContent = 'Ready';
     console.log('[spoor] model ready');
 
     if (state.queue.length > 0 && !state.processing) processNext();
@@ -207,6 +237,7 @@ async function loadModel() {
 if (IS_TAURI) {
     // Model is loaded in Rust on startup — ready immediately
     state.modelReady = true;
+    statusText.textContent = 'Ready';
     console.log('[spoor] native model ready');
 } else {
     loadModel().catch(err => {
@@ -449,7 +480,7 @@ function addFiles(files) {
     }
 
     state.totalImages += imageFiles.length;
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     resultsSection.hidden = false;
     startConvergence();
     updateProgress();
@@ -482,7 +513,8 @@ async function processNext() {
 
 dropZone.addEventListener('click', async (e) => {
     // Only respond to clicks on the drop zone inner area, not the convergence container
-    if (dropZone.classList.contains('processing')) return;
+    const isProcessing = IS_TAURI ? dropInner.classList.contains('processing') : dropZone.classList.contains('processing');
+    if (isProcessing) return;
 
     if (IS_TAURI) {
         // Folder picker — drag-and-drop covers files, click = folder
@@ -505,8 +537,9 @@ fileInput.addEventListener('change', () => {
     fileInput.value = '';
 });
 
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+const dragTarget = IS_TAURI ? dropInner : dropZone;
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dragTarget.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dragTarget.classList.remove('drag-over'));
 
 // ── Browser folder drop support ─────────────────────────────────
 
@@ -555,7 +588,7 @@ async function handleDrop(e) {
 }
 
 dropZone.addEventListener('drop', (e) => {
-    dropZone.classList.remove('drag-over');
+    dragTarget.classList.remove('drag-over');
     handleDrop(e);
 });
 
@@ -803,7 +836,10 @@ function updateProgress() {
     const done = processedImages >= totalImages && totalImages > 0;
 
     if (done) {
-        statusText.textContent = 'Done';
+        const doneText = state.speciesStatus === 'done'
+            ? `Done \u00b7 ${state.speciesProcessed} species identified`
+            : 'Done';
+        statusText.textContent = doneText;
         cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
@@ -813,12 +849,18 @@ function updateProgress() {
         filterControls.hidden = false;
         confidenceGroup.hidden = false;
         stopConvergence();
-        if (IS_TAURI && state.speciesStatus === 'idle' && hasAnimalDetections()) {
-            speciesBtn.hidden = false;
+        if (IS_TAURI) {
+            if (procText) procText.textContent = `Done \u2014 ${totalImages} images`;
+            cancelBtn.style.display = 'none';
+            if (state.speciesStatus === 'idle' && hasAnimalDetections()) {
+                speciesBtn.hidden = false;
+            }
         }
     } else if (totalImages > 0) {
         const name = state.folderName ? ` \u2014 ${state.folderName}` : '';
-        statusText.textContent = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
+        const progressMsg = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
+        statusText.textContent = progressMsg;
+        if (IS_TAURI && procText) procText.textContent = progressMsg;
         if (state.batchActive) cancelBtn.classList.remove('hidden');
     }
 
@@ -827,9 +869,6 @@ function updateProgress() {
     const animalCount = countVisibleAnimals();
     const parts = [`${processedImages} of ${totalImages} images`];
     if (animalCount > 0) parts.push(`${animalCount} animal${animalCount !== 1 ? 's' : ''}`);
-    if (state.speciesStatus === 'done') {
-        parts.push(`${state.speciesProcessed} species identified`);
-    }
     resultsSummary.textContent = parts.join(' \u00b7 ');
 }
 
@@ -989,7 +1028,6 @@ async function exportImagesTauri() {
     if (items.length === 0) return;
 
     exportImagesBtn.disabled = true;
-    exportImagesBtn.textContent = 'Exporting\u2026';
 
     let total;
     try {
@@ -1001,13 +1039,11 @@ async function exportImagesTauri() {
     } catch (e) {
         console.error('[spoor] Export invoke failed:', e);
         exportImagesBtn.disabled = false;
-        exportImagesBtn.textContent = 'Images';
         return;
     }
 
     if (total === 0) {
         exportImagesBtn.disabled = false;
-        exportImagesBtn.textContent = 'Images';
     }
     // Progress and completion handled by event listeners (set up in Tauri block below)
 }
@@ -1032,13 +1068,12 @@ async function exportImagesWeb() {
     if (results.length === 0) return;
 
     exportImagesBtn.disabled = true;
-    exportImagesBtn.textContent = 'Exporting\u2026';
 
     const worker = new Worker('export-worker.js');
     worker.onmessage = (e) => {
         const msg = e.data;
         if (msg.type === 'progress') {
-            exportImagesBtn.textContent = `Exporting ${msg.current}/${msg.total}\u2026`;
+            // progress shown in status bar, button stays stable
         } else if (msg.type === 'done') {
             const url = URL.createObjectURL(msg.blob);
             const a = document.createElement('a');
@@ -1050,12 +1085,10 @@ async function exportImagesWeb() {
             URL.revokeObjectURL(url);
 
             exportImagesBtn.disabled = false;
-            exportImagesBtn.textContent = 'Images';
             worker.terminate();
         } else if (msg.type === 'error') {
             console.error('[spoor] Image export failed:', msg.error);
             exportImagesBtn.disabled = false;
-            exportImagesBtn.textContent = 'Images';
             worker.terminate();
         }
     };
@@ -1100,8 +1133,7 @@ function startSpeciesClassification() {
     state.speciesProcessed = 0;
 
     speciesBtn.disabled = true;
-    speciesBtn.textContent = 'Identifying\u2026';
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     statusText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
     startConvergence();
 
@@ -1109,7 +1141,6 @@ function startSpeciesClassification() {
         console.error('[spoor] Species classification failed:', err);
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        speciesBtn.textContent = 'Identify species';
         statusText.textContent = `Species identification failed: ${err}`;
     });
 }
@@ -1118,7 +1149,7 @@ speciesBtn.addEventListener('click', startSpeciesClassification);
 
 // ── Clear / reset ───────────────────────────────────────────────
 
-function clearResults() {
+function resetState() {
     // Cancel any active batch first
     if (state.batchActive && IS_TAURI) {
         invoke('cancel_processing');
@@ -1153,27 +1184,27 @@ function clearResults() {
     // Stop observing resizes
     bboxObserver.disconnect();
 
-    // Clear DOM
+    // Reset sort buttons
+    for (const btn of document.querySelectorAll('.sort-btn')) {
+        btn.classList.toggle('active', btn.dataset.sort === 'processing');
+    }
+}
+
+function resetDOM() {
     resultsGrid.innerHTML = '';
     resultsSection.hidden = true;
-    statusBar.classList.remove('visible');
-    statusText.textContent = '';
+    resultsSection.classList.remove('fading');
     resultsSummary.textContent = '';
 
-    // Reset convergence
     clearConvergenceTimers();
-    dropZone.classList.remove('processing');
-    dropInner.classList.remove('pulsing');
     convergenceContainer.classList.remove('active', 'fading');
-    dropText.classList.remove('hidden');
+    dropInner.classList.remove('pulsing');
 
-    // Reset category counts
     countAnimal.textContent = '0';
     countPerson.textContent = '0';
     countVehicle.textContent = '0';
     countEmpty.textContent = '0';
 
-    // Hide controls
     sortControls.hidden = true;
     filterControls.hidden = true;
     confidenceGroup.hidden = true;
@@ -1182,14 +1213,48 @@ function clearResults() {
     exportImagesBtn.hidden = true;
     speciesBtn.hidden = true;
     speciesBtn.disabled = false;
-    speciesBtn.textContent = 'Identify species';
     clearBtn.hidden = true;
     cancelBtn.classList.add('hidden');
     cancelBtn.disabled = false;
+}
 
-    // Reset sort buttons
-    for (const btn of document.querySelectorAll('.sort-btn')) {
-        btn.classList.toggle('active', btn.dataset.sort === 'processing');
+function clearResults() {
+    resetState();
+
+    if (IS_TAURI) {
+        // Phase 1: fade out results + proc-info (350ms)
+        resultsSection.classList.add('fading');
+        if (procInfo) procInfo.style.opacity = '0';
+        countAnimal.textContent = '0';
+        countPerson.textContent = '0';
+        countVehicle.textContent = '0';
+        countEmpty.textContent = '0';
+        statusText.textContent = 'Ready';
+
+        // Phase 2: after fade, remove from layout and release drop zone
+        setTimeout(() => {
+            resetDOM();
+            if (procInfo) { procInfo.classList.remove('visible'); procInfo.style.opacity = ''; }
+            if (procText) procText.textContent = '';
+            cancelBtn.style.display = '';
+
+            // Un-collapse: top-row expands, dz drifts to center
+            if (topRow) topRow.classList.remove('collapsed');
+            dropZone.classList.remove('at-corner');
+            dropInner.classList.remove('processing');
+
+            // Phase 3: fade text back in (250ms after layout release)
+            setTimeout(() => {
+                dropText.classList.remove('faded');
+            }, 250);
+        }, 350);
+    } else {
+        // Web: instant clear
+        resetDOM();
+        statusBar.classList.remove('visible');
+        statusText.textContent = '';
+        dropZone.classList.remove('processing');
+        dropText.classList.remove('hidden');
     }
 }
 
@@ -1262,7 +1327,7 @@ function startBatch(total, folderName) {
     state.totalImages += total;
     state.batchActive = true;
     state.folderName = folderName;
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     resultsSection.hidden = false;
     startConvergence();
     updateProgress();
@@ -1345,7 +1410,10 @@ if (IS_TAURI) {
         endBatch();
 
         stopConvergence();
-        statusText.textContent = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
+        const cancelMsg = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
+        statusText.textContent = cancelMsg;
+        if (procText) procText.textContent = cancelMsg;
+        cancelBtn.style.display = 'none';
 
         if (state.results.length > 0) {
             exportBtn.hidden = false;
@@ -1363,12 +1431,11 @@ if (IS_TAURI) {
 
     // ── Image export events ────────────────────────────────────
     tauriListen('export-progress', (payload) => {
-        exportImagesBtn.textContent = `Exporting ${payload.current}/${payload.total}\u2026`;
+        statusText.textContent = `Exporting ${payload.current}/${payload.total}\u2026`;
     });
 
     tauriListen('export-complete', (payload) => {
         exportImagesBtn.disabled = false;
-        exportImagesBtn.textContent = 'Images';
         const msg = payload.errors > 0
             ? `Exported ${payload.total - payload.errors}/${payload.total} images (${payload.errors} failed)`
             : `Exported ${payload.total} images`;
@@ -1381,7 +1448,6 @@ if (IS_TAURI) {
 
     tauriListen('export-cancelled', () => {
         exportImagesBtn.disabled = false;
-        exportImagesBtn.textContent = 'Images';
         statusText.textContent = 'Export cancelled';
     });
 
@@ -1430,7 +1496,6 @@ if (IS_TAURI) {
 
     tauriListen('species-complete', () => {
         state.speciesStatus = 'done';
-        speciesBtn.textContent = 'Species identified';
         speciesBtn.disabled = true;
         stopConvergence();
         updateProgress(); // refresh resultsSummary with species count
@@ -1439,7 +1504,6 @@ if (IS_TAURI) {
     tauriListen('species-cancelled', () => {
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        speciesBtn.textContent = 'Identify species';
         statusText.textContent = 'Species identification cancelled';
         stopConvergence();
     });
