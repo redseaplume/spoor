@@ -1202,6 +1202,8 @@ function resetState() {
     state.totalImages = 0;
     state.processedImages = 0;
     state.sortBy = 'processing';
+    state.displayThreshold = 0.2;
+    state.visibleCategories = new Set(['animal', 'person', 'vehicle', 'empty']);
     state.folderName = null;
     state.folderPath = null;
     state.batchActive = false;
@@ -1217,6 +1219,15 @@ function resetState() {
     // Reset sort buttons
     for (const btn of document.querySelectorAll('.sort-btn')) {
         btn.classList.toggle('active', btn.dataset.sort === 'processing');
+    }
+
+    // Reset confidence slider
+    thresholdSlider.value = 0.2;
+    thresholdValue.textContent = '20%';
+
+    // Reset filter buttons
+    for (const btn of document.querySelectorAll('.filter-btn')) {
+        btn.classList.add('active');
     }
 }
 
