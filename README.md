@@ -50,7 +50,7 @@ Spoor bundles three models (two detectors + species classifier) in a single app 
 
 ## Benchmarks
 
-See [BENCHMARKS.md](BENCHMARKS.md) for full methodology, results, and reproduction steps. We tested on 200 Caltech Camera Traps images against ground truth. MDv5a INT8 at native resolution hits 99.2% bbox recall and 98.4% precision. INT8 quantization loses almost nothing vs FP32 (99% precision, 99% recall, 0.959 IoU). Scripts to reproduce everything are in `scripts/`.
+See [BENCHMARKS.md](BENCHMARKS.md) for full methodology, results, and reproduction steps. We quantized MDv5a from FP32 (534 MB) to INT8 (134 MB) using ONNX Runtime's dynamic quantization (`scripts/convert.py`). We tested on 200 labelled images from Caltech Camera Traps. MDv5a INT8 at native resolution hits 99.2% bbox recall and 98.4% precision. INT8 quantization loses almost nothing vs FP32 (99% precision, 99% recall, 0.959 IoU). Scripts to reproduce everything are in `scripts/`.
 
 ## Detection models
 
