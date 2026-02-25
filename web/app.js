@@ -89,6 +89,9 @@ const countAnimal = document.getElementById('count-animal');
 const countPerson = document.getElementById('count-person');
 const countVehicle = document.getElementById('count-vehicle');
 const countEmpty = document.getElementById('count-empty');
+const labelAnimal = document.getElementById('label-animal');
+const labelPerson = document.getElementById('label-person');
+const labelVehicle = document.getElementById('label-vehicle');
 const resultsSection = document.getElementById('results');
 const resultsSummary = document.getElementById('results-summary');
 const resultsGrid = document.getElementById('results-grid');
@@ -816,13 +819,19 @@ function countVisibleAnimals() {
 function updateCategoryCounts() {
     const counts = { animal: 0, person: 0, vehicle: 0, empty: 0 };
     for (const r of state.results) {
-        const cat = cardCategory(r);
-        counts[cat]++;
+        const vis = visibleDetections(r);
+        counts.animal += vis.filter(d => d.category === 0).length;
+        counts.person += vis.filter(d => d.category === 1).length;
+        counts.vehicle += vis.filter(d => d.category === 2).length;
+        if (vis.length === 0) counts.empty++;
     }
     countAnimal.textContent = counts.animal;
     countPerson.textContent = counts.person;
     countVehicle.textContent = counts.vehicle;
     countEmpty.textContent = counts.empty;
+    if (labelAnimal) labelAnimal.textContent = counts.animal === 1 ? 'animal' : 'animals';
+    if (labelPerson) labelPerson.textContent = counts.person === 1 ? 'person' : 'people';
+    if (labelVehicle) labelVehicle.textContent = counts.vehicle === 1 ? 'vehicle' : 'vehicles';
 }
 
 function updateProgress() {
@@ -1240,6 +1249,9 @@ function resetDOM() {
     countPerson.textContent = '0';
     countVehicle.textContent = '0';
     countEmpty.textContent = '0';
+    if (labelAnimal) labelAnimal.textContent = 'animals';
+    if (labelPerson) labelPerson.textContent = 'people';
+    if (labelVehicle) labelVehicle.textContent = 'vehicles';
 
     sortControls.hidden = true;
     filterControls.hidden = true;
@@ -1266,6 +1278,9 @@ function clearResults() {
         countPerson.textContent = '0';
         countVehicle.textContent = '0';
         countEmpty.textContent = '0';
+        if (labelAnimal) labelAnimal.textContent = 'animals';
+        if (labelPerson) labelPerson.textContent = 'people';
+        if (labelVehicle) labelVehicle.textContent = 'vehicles';
         statusText.textContent = 'Ready';
 
         // Phase 2: after fade completes, clean up and snap drop zone in
