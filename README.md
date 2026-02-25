@@ -15,11 +15,33 @@ Drop camera trap images into Spoor and it tells you what's there: animal, person
 
 ## Download
 
-See [Releases](https://github.com/redseaplume/spoor/releases) for the latest builds.
+Grab the latest build for your platform from [Releases](https://github.com/redseaplume/spoor/releases).
 
-- **macOS**: Apple Silicon native. Intel Macs supported via Rosetta 2.
-- **Windows**: 10 and later. WebView2 required (installs automatically).
-- **Linux**: .deb and .rpm packages. Requires glibc 2.38+ and libwebkit2gtk-4.1 (Ubuntu 24.04+, Fedora 39+).
+### macOS
+
+Download **Spoor_x.x.x_aarch64.dmg**, open it, and drag Spoor to Applications.
+
+Spoor is not signed with an Apple Developer certificate. macOS will block the first launch — right-click the app and choose **Open**, then click Open again in the dialog. You only need to do this once.
+
+Apple Silicon native. Intel Macs run via Rosetta 2.
+
+### Windows
+
+Download **Spoor_x.x.x_x64-setup.exe** and run the installer. WebView2 is required and installs automatically if missing.
+
+### Linux
+
+Download the **.deb** or **.rpm** package.
+
+```
+# Debian/Ubuntu 24.04+
+sudo dpkg -i spoor_x.x.x_amd64.deb
+
+# Fedora 39+
+sudo rpm -i spoor-x.x.x-1.x86_64.rpm
+```
+
+Requires glibc 2.38+ and libwebkit2gtk-4.1.
 
 ## Build from source
 
