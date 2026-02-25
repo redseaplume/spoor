@@ -10,7 +10,7 @@ Drop camera trap images into Spoor and it tells you what's there: animal, person
 - **Species identification**: 2,498 species via SpeciesNet
 - **Export**: [MegaDetector JSON v1.5](https://lila.science/megadetector-output-format) and CSV — compatible with Timelapse and the wider camera trap ecosystem. Species identifications are included in the JSON but use Spoor's own format, not the spec's `classifications` field.
 - **No install complexity**: no Python, no PyTorch, no 25GB downloads. One app.
-- **Web version**: 10 MB model that runs in your browser. No sign-up or account needed.
+- **Web version**: MDv6 (10 MB) runs in your browser. No sign-up or account needed.
 - **Data privacy**: your data stays local.
 
 ## Download
@@ -42,7 +42,7 @@ cargo tauri build
 | **Dependencies** | None | None | Python, Conda, PyTorch |
 | **Detection models** | 2 (MDv6 + MDv5a) | 1 (MDv5) | MDv5 + regional |
 | **Species ID** | SpeciesNet v4 | No | Regional classifiers |
-| **Web version** | Yes (10 MB model) | No | No |
+| **Web version** | Yes (MDv6, 10 MB) | No | No |
 | **Data stays local** | Yes | Yes | Yes |
 | **Platforms** | macOS, Windows, Linux | Windows, macOS, Linux | Windows, macOS, Linux |
 
