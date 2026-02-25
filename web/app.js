@@ -84,7 +84,6 @@ const dropZoneSecondary = dropZone.querySelector('.drop-zone-secondary');
 const convergenceContainer = document.getElementById('convergence');
 const fileInput = document.getElementById('file-input');
 const statusBar = document.getElementById('status-bar');
-const statusText = document.getElementById('status-text');
 const countAnimal = document.getElementById('count-animal');
 const countPerson = document.getElementById('count-person');
 const countVehicle = document.getElementById('count-vehicle');
@@ -93,7 +92,6 @@ const labelAnimal = document.getElementById('label-animal');
 const labelPerson = document.getElementById('label-person');
 const labelVehicle = document.getElementById('label-vehicle');
 const resultsSection = document.getElementById('results');
-const resultsSummary = document.getElementById('results-summary');
 const resultsGrid = document.getElementById('results-grid');
 const exportBtn = document.getElementById('export-btn');
 const exportImagesBtn = document.getElementById('export-images-btn');
@@ -226,7 +224,6 @@ async function loadModel() {
     });
 
     state.modelReady = true;
-    statusText.textContent = 'Ready';
     console.log('[spoor] model ready');
 
     if (state.queue.length > 0 && !state.processing) processNext();
@@ -235,7 +232,6 @@ async function loadModel() {
 if (IS_TAURI) {
     // Model is loaded in Rust on startup — ready immediately
     state.modelReady = true;
-    statusText.textContent = 'Ready';
     console.log('[spoor] native model ready');
 } else {
     loadModel().catch(err => {
@@ -808,14 +804,6 @@ function summarizeDetections(allDetections, visibleDets) {
     return Object.entries(counts).map(([name, n]) => `${n} ${name}${n > 1 ? 's' : ''}`).join(', ');
 }
 
-function countVisibleAnimals() {
-    let count = 0;
-    for (const r of state.results) {
-        count += visibleDetections(r).filter(d => d.category === 0).length;
-    }
-    return count;
-}
-
 function updateCategoryCounts() {
     const counts = { animal: 0, person: 0, vehicle: 0, empty: 0 };
     for (const r of state.results) {
@@ -842,7 +830,6 @@ function updateProgress() {
         const doneText = state.speciesStatus === 'done'
             ? `Done \u00b7 ${state.speciesProcessed} species identified`
             : 'Done';
-        statusText.textContent = doneText;
         cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
@@ -864,17 +851,11 @@ function updateProgress() {
     } else if (totalImages > 0) {
         const name = state.folderName ? ` \u2014 ${state.folderName}` : '';
         const progressMsg = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
-        statusText.textContent = progressMsg;
         if (IS_TAURI && procText) procText.textContent = progressMsg;
         if (state.batchActive) cancelBtn.classList.remove('hidden');
     }
 
     updateCategoryCounts();
-
-    const animalCount = countVisibleAnimals();
-    const parts = [`${processedImages} of ${totalImages} images`];
-    if (animalCount > 0) parts.push(`${animalCount} animal${animalCount !== 1 ? 's' : ''}`);
-    resultsSummary.textContent = parts.join(' \u00b7 ');
 }
 
 // ── Sorting ─────────────────────────────────────────────────────
@@ -1177,7 +1158,6 @@ function startSpeciesClassification() {
 
     speciesBtn.disabled = true;
     if (!IS_TAURI) statusBar.classList.add('visible');
-    statusText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
     if (IS_TAURI && procText) procText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
     startConvergence();
 
@@ -1185,7 +1165,6 @@ function startSpeciesClassification() {
         console.error('[spoor] Species classification failed:', err);
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        statusText.textContent = `Species identification failed: ${err}`;
     });
 }
 
@@ -1238,8 +1217,6 @@ function resetDOM() {
     resultsGrid.innerHTML = '';
     resultsSection.hidden = true;
     resultsSection.classList.remove('fading');
-    resultsSummary.textContent = '';
-
     clearConvergenceTimers();
     convergenceContainer.classList.remove('active', 'fading');
     dropInner?.classList.remove('pulsing');
@@ -1281,7 +1258,6 @@ function clearResults() {
         if (labelAnimal) labelAnimal.textContent = 'animals';
         if (labelPerson) labelPerson.textContent = 'people';
         if (labelVehicle) labelVehicle.textContent = 'vehicles';
-        statusText.textContent = 'Ready';
 
         // Phase 2: after fade completes, clean up and snap drop zone in
         setTimeout(() => {
@@ -1301,7 +1277,6 @@ function clearResults() {
         // Web: instant clear
         resetDOM();
         statusBar.classList.remove('visible');
-        statusText.textContent = '';
         dropZone.classList.remove('processing');
         dropText.classList.remove('hidden');
     }
@@ -1410,7 +1385,6 @@ if (IS_TAURI) {
     // ── Cancel button ───────────────────────────────────────────
     cancelBtn.addEventListener('click', async () => {
         cancelBtn.disabled = true;
-        statusText.textContent = 'Cancelling\u2026';
         await invoke('cancel_processing');
     });
 
@@ -1464,7 +1438,6 @@ if (IS_TAURI) {
 
         stopConvergence();
         const cancelMsg = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
-        statusText.textContent = cancelMsg;
         if (procText) procText.textContent = cancelMsg;
         cancelBtn.style.display = 'none';
 
@@ -1484,7 +1457,6 @@ if (IS_TAURI) {
 
     // ── Image export events ────────────────────────────────────
     tauriListen('export-progress', (payload) => {
-        statusText.textContent = `Exporting ${payload.current}/${payload.total}\u2026`;
     });
 
     tauriListen('export-complete', (payload) => {
@@ -1492,7 +1464,6 @@ if (IS_TAURI) {
         const msg = payload.errors > 0
             ? `Exported ${payload.total - payload.errors}/${payload.total} images (${payload.errors} failed)`
             : `Exported ${payload.total} images`;
-        statusText.textContent = msg;
     });
 
     tauriListen('export-error', (payload) => {
@@ -1501,7 +1472,6 @@ if (IS_TAURI) {
 
     tauriListen('export-cancelled', () => {
         exportImagesBtn.disabled = false;
-        statusText.textContent = 'Export cancelled';
     });
 
     // ── Species classification events ───────────────────────────
@@ -1536,7 +1506,6 @@ if (IS_TAURI) {
         const speciesMsg = state.speciesProcessed < state.speciesTotal
             ? `Identifying species ${state.speciesProcessed + 1} of ${state.speciesTotal}\u2026`
             : 'Finishing species identification\u2026';
-        statusText.textContent = speciesMsg;
         if (IS_TAURI && procText) procText.textContent = speciesMsg;
 
         // Update the card
@@ -1559,7 +1528,6 @@ if (IS_TAURI) {
     tauriListen('species-cancelled', () => {
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        statusText.textContent = 'Species identification cancelled';
         stopConvergence();
     });
 }

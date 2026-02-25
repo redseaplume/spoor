@@ -187,12 +187,11 @@ input[type="range"]:focus:not(:focus-visible) { outline: none; }
 .results.fading { opacity: 0; }
 
 .results-hdr {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center;
     padding: 8px 16px; border-bottom: 1px solid var(--border);
     flex-wrap: wrap; gap: 6px;
-    flex-shrink: 0;
+    flex-shrink: 0; min-height: 37px;
 }
-.results-summary { font-size: 11px; color: var(--text-secondary); }
 .results-ctrls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .control-group { display: flex; align-items: center; gap: 8px; }
