@@ -51,8 +51,12 @@ input[type="range"]:focus:not(:focus-visible) { outline: none; }
 .sep { width: 1px; height: 14px; background: var(--border-light); flex-shrink: 0; }
 
 /* ── Confidence (toolbar) ───────────────────────────────── */
-.conf-grp { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.conf-grp {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    transition: opacity 0.3s var(--ease);
+}
 .conf-grp[hidden] { display: none; }
+.conf-grp.fading { opacity: 0; }
 .slider {
     -webkit-appearance: none; appearance: none; width: 72px; height: 2px;
     background: var(--border-light); outline: none;
@@ -102,67 +106,51 @@ input[type="range"]:focus:not(:focus-visible) { outline: none; }
     overflow: hidden; position: relative;
 }
 
-/* ── Top row: drop zone + proc info ──────────────────────── */
-.top-row {
-    display: flex; align-items: center;
-    flex: 1 0 0;
-    transition: flex 0.6s var(--ease);
-    overflow: hidden;
-}
-.top-row.collapsed {
-    flex: 0 0 80px;
-}
-
-/* ── Drop zone ───────────────────────────────────────────── */
-.dz {
-    width: 200px;
-    height: 200px;
-    position: absolute;
-    z-index: 5;
-    top: calc(50% - 100px);
-    left: calc(50% - 100px);
-    flex-shrink: 0;
-    transition: width 0.6s var(--ease), height 0.6s var(--ease),
-                top 0.6s var(--ease), left 0.6s var(--ease);
-}
-.dz.at-corner {
-    width: 60px;
-    height: 60px;
-    top: 10px;
-    left: 16px;
-}
-
-.dz-inner {
-    position: absolute; inset: 0;
-    border: 1.5px dashed var(--border-light);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+/* ── Drop zone (full-bleed overlay) ─────────────────────── */
+.drop-zone {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    transition:
-        top 0.6s var(--ease), right 0.6s var(--ease),
-        bottom 0.6s var(--ease), left 0.6s var(--ease),
-        background 0.6s var(--ease), border-color 0.4s ease;
+    transition: opacity 0.35s var(--ease);
 }
-.dz-inner:hover { border-color: var(--amber); }
-.dz-inner.drag-over { border-color: var(--amber); background: rgba(176,106,40,0.04); }
-.dz-inner.processing {
-    top: calc(50% - 5px); right: calc(50% - 5px);
-    bottom: calc(50% - 5px); left: calc(50% - 5px);
-    background: var(--text); border-color: transparent;
-    cursor: default;
-}
-.dz-inner.pulsing { animation: core-pulse 1.5s ease-in-out infinite; }
+.drop-zone:hover { background: rgba(176, 106, 40, 0.06); }
+.drop-zone.drag-over { background: rgba(176, 106, 40, 0.06); }
+.drop-zone.hidden { opacity: 0; pointer-events: none; }
+.drop-zone.no-transition { transition: none; }
 
-.dz-text {
-    text-align: center; transition: opacity 0.3s ease;
-    pointer-events: none;
-}
-.dz-text.faded { opacity: 0; }
-.dz-text.hidden { opacity: 0; pointer-events: none; }
+.dz-text { text-align: center; pointer-events: none; }
 .dz-primary { font-size: 13px; color: var(--text-secondary); letter-spacing: 0.01em; }
 .dz-secondary { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
+/* ── Processing row ─────────────────────────────────────── */
+.proc-row {
+    height: 60px; min-height: 60px; flex-shrink: 0;
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 10px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s var(--ease);
+}
+.proc-row.visible { opacity: 1; pointer-events: auto; }
+
+.proc-text {
+    font-size: 10.5px; letter-spacing: 0.02em;
+    color: var(--text-secondary);
+}
+
 /* ── Convergence particles ──────────────────────────────── */
+.conv-wrap {
+    width: 50px; height: 50px;
+    position: relative; flex-shrink: 0;
+}
+
+.conv-core {
+    position: absolute;
+    top: calc(50% - 5px); left: calc(50% - 5px);
+    width: 10px; height: 10px;
+    background: var(--text);
+}
+.conv-core.pulsing { animation: core-pulse 1.5s ease-in-out infinite; }
+
 .conv {
     position: absolute; inset: 0; pointer-events: none;
     transition: opacity 0.4s ease;
@@ -189,25 +177,11 @@ input[type="range"]:focus:not(:focus-visible) { outline: none; }
     50% { transform: scale(1.4); opacity: 1; }
 }
 
-/* ── Processing info (beside collapsed drop zone) ───────── */
-.proc-info {
-    display: none; align-items: center; gap: 10px;
-    margin-left: 76px;
-    padding: 10px 16px 10px 12px;
-    flex-shrink: 0;
-    transition: opacity 0.3s ease;
-}
-.proc-info.visible { display: flex; }
-.proc-text {
-    font-size: 10.5px; letter-spacing: 0.02em;
-    color: var(--text-secondary);
-}
-
 /* ── Results section ────────────────────────────────────── */
 .results {
     flex: 1; display: flex; flex-direction: column;
     overflow: hidden;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.3s var(--ease);
 }
 .results[hidden] { display: none; }
 .results.fading { opacity: 0; }

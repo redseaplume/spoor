@@ -97,8 +97,8 @@ const exportImagesBtn = document.getElementById('export-images-btn');
 const objectUrls = new Map();
 
 // ── Desktop-only DOM refs ─────────────────────────────────────────
-const topRow = document.getElementById('top-row');
-const procInfo = document.getElementById('proc-info');
+const procRow = document.getElementById('proc-row');
+const convCore = document.getElementById('conv-core');
 const procText = document.getElementById('proc-text');
 
 // ── Convergence particles ───────────────────────────────────────
@@ -108,12 +108,12 @@ for (let i = 0; i < PARTICLE_COUNT; i++) {
     const p = document.createElement('div');
     p.className = 'particle';
     const angle = Math.random() * Math.PI * 2;
-    const dist = 35 + Math.random() * 25;
-    const dur = 1.8 + Math.random() * 1.2;
+    const dist = IS_TAURI ? 18 + Math.random() * 14 : 35 + Math.random() * 25;
+    const dur = IS_TAURI ? 1.2 + Math.random() * 0.8 : 1.8 + Math.random() * 1.2;
     p.style.cssText = `
         --sx: ${Math.cos(angle) * dist}px;
         --sy: ${Math.sin(angle) * dist}px;
-        --delay: ${Math.random() * 2.5}s;
+        --delay: ${IS_TAURI ? -Math.random() * 2 : Math.random() * 2.5}s;
         --dur: ${dur}s;
     `;
     convergenceContainer.appendChild(p);
@@ -130,20 +130,15 @@ function startConvergence() {
     clearConvergenceTimers();
 
     if (IS_TAURI) {
-        // Desktop: collapse top-row, corner the drop zone, show proc-info
-        dropText.classList.add('faded');
-        if (topRow) topRow.classList.add('collapsed');
-        dropZone.classList.add('at-corner');
+        // Desktop: fade out drop zone, show proc-row with convergence
+        dropZone.classList.add('hidden');
+        procRow.classList.add('visible');
         convergenceContainer.classList.remove('fading');
         convergenceTimers.push(
             setTimeout(() => {
-                dropInner.classList.add('processing');
-                if (procInfo) procInfo.classList.add('visible');
-            }, 100),
-            setTimeout(() => {
-                dropInner.classList.add('pulsing');
+                convCore.classList.add('pulsing');
                 convergenceContainer.classList.add('active');
-            }, 600)
+            }, 200)
         );
     } else {
         // Web: existing behavior
@@ -162,15 +157,15 @@ function startConvergence() {
 function stopConvergence() {
     clearConvergenceTimers();
 
-    dropInner.classList.remove('pulsing');
+    dropInner?.classList.remove('pulsing');
+    if (IS_TAURI) convCore?.classList.remove('pulsing');
     convergenceContainer.classList.add('fading');
 
     convergenceTimers.push(
         setTimeout(() => {
             convergenceContainer.classList.remove('active', 'fading');
             if (IS_TAURI) {
-                // Desktop: keep layout collapsed, just stop animation
-                // proc-info stays visible, top-row stays collapsed
+                // Desktop: proc-row stays visible, just stop animation
             } else {
                 dropZone.classList.remove('processing');
                 convergenceTimers.push(
@@ -513,7 +508,7 @@ async function processNext() {
 
 dropZone.addEventListener('click', async (e) => {
     // Only respond to clicks on the drop zone inner area, not the convergence container
-    const isProcessing = IS_TAURI ? dropInner.classList.contains('processing') : dropZone.classList.contains('processing');
+    const isProcessing = IS_TAURI ? dropZone.classList.contains('hidden') : dropZone.classList.contains('processing');
     if (isProcessing) return;
 
     if (IS_TAURI) {
@@ -537,7 +532,7 @@ fileInput.addEventListener('change', () => {
     fileInput.value = '';
 });
 
-const dragTarget = IS_TAURI ? dropInner : dropZone;
+const dragTarget = dropZone;
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dragTarget.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dragTarget.classList.remove('drag-over'));
 
@@ -1198,7 +1193,8 @@ function resetDOM() {
 
     clearConvergenceTimers();
     convergenceContainer.classList.remove('active', 'fading');
-    dropInner.classList.remove('pulsing');
+    dropInner?.classList.remove('pulsing');
+    if (IS_TAURI) convCore?.classList.remove('pulsing');
 
     countAnimal.textContent = '0';
     countPerson.textContent = '0';
@@ -1222,32 +1218,30 @@ function clearResults() {
     resetState();
 
     if (IS_TAURI) {
-        // Phase 1: fade out results + proc-info (350ms)
+        // Phase 1: fade out proc-row + results (300ms)
+        procRow.classList.remove('visible');
         resultsSection.classList.add('fading');
-        if (procInfo) procInfo.style.opacity = '0';
+        confidenceGroup.classList.add('fading');
         countAnimal.textContent = '0';
         countPerson.textContent = '0';
         countVehicle.textContent = '0';
         countEmpty.textContent = '0';
         statusText.textContent = 'Ready';
 
-        // Phase 2: after fade, remove from layout and release drop zone
+        // Phase 2: after fade completes, clean up and snap drop zone in
         setTimeout(() => {
             resetDOM();
-            if (procInfo) { procInfo.classList.remove('visible'); procInfo.style.opacity = ''; }
+            confidenceGroup.classList.remove('fading');
             if (procText) procText.textContent = '';
             cancelBtn.style.display = '';
 
-            // Un-collapse: top-row expands, dz drifts to center
-            if (topRow) topRow.classList.remove('collapsed');
-            dropZone.classList.remove('at-corner');
-            dropInner.classList.remove('processing');
-
-            // Phase 3: fade text back in (250ms after layout release)
-            setTimeout(() => {
-                dropText.classList.remove('faded');
-            }, 250);
-        }, 350);
+            // Snap: show drop zone instantly, no fade
+            dropZone.classList.add('no-transition');
+            dropZone.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                dropZone.classList.remove('no-transition');
+            });
+        }, 300);
     } else {
         // Web: instant clear
         resetDOM();
