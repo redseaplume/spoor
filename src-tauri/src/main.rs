@@ -207,6 +207,13 @@ fn cancel_processing() {
     CANCEL_FLAG.store(true, Ordering::Relaxed);
 }
 
+// ── Text file export (CSV / JSON) ───────────────────────────────
+
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("Write failed: {e}"))
+}
+
 // ── Image export ───────────────────────────────────────────────
 
 static FONT_BYTES: &[u8] = include_bytes!("../resources/JetBrainsMono-Regular.ttf");
@@ -419,7 +426,8 @@ fn main() {
             process_paths,
             cancel_processing,
             classify_detections,
-            export_images
+            export_images,
+            write_text_file
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {

@@ -604,8 +604,7 @@ function visibleDetections(result) {
 }
 
 function cardCategory(result) {
-    const dets = visibleDetections(result);
-    return dets.length > 0 ? dets[0].categoryName : 'empty';
+    return result.detections.length > 0 ? result.detections[0].categoryName : 'empty';
 }
 
 function applyFilters() {
@@ -845,7 +844,9 @@ function updateProgress() {
         confidenceGroup.hidden = false;
         stopConvergence();
         if (IS_TAURI) {
-            if (procText) procText.textContent = `Done \u2014 ${totalImages} images`;
+            if (procText) procText.textContent = state.speciesStatus === 'done'
+                ? `Done \u2014 ${totalImages} images \u00b7 ${state.speciesProcessed} species identified`
+                : `Done \u2014 ${totalImages} images`;
             cancelBtn.style.display = 'none';
             if (state.speciesStatus === 'idle' && hasAnimalDetections()) {
                 speciesBtn.hidden = false;
@@ -913,7 +914,7 @@ for (const btn of document.querySelectorAll('.filter-btn')) {
 
 // ── Export: MegaDetector JSON v1.5 ─────────────────────────────
 
-function exportJSON() {
+async function exportJSON() {
     const isQuick = MODEL_TYPE === 'quick';
     const output = {
         info: {
@@ -925,9 +926,9 @@ function exportJSON() {
         },
         detection_categories: { '1': 'animal', '2': 'person', '3': 'vehicle' },
         images: state.results.map(r => {
-            const dets = visibleDetections(r);
+            const dets = r.detections;
             return {
-                file: r.fileName,
+                file: IS_TAURI ? r.nativePath : r.fileName,
                 max_detection_conf: dets.length > 0
                     ? parseFloat(dets[0].confidence.toFixed(4)) : 0,
                 detections: dets.map(d => {
@@ -952,40 +953,78 @@ function exportJSON() {
         })
     };
 
-    const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'spoor_detections.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    const json = JSON.stringify(output, null, 2);
+
+    if (IS_TAURI) {
+        const path = await invoke('plugin:dialog|save', {
+            options: {
+                title: 'Save detections as JSON',
+                defaultPath: 'spoor_detections.json',
+                filters: [{ name: 'JSON', extensions: ['json'] }],
+                canCreateDirectories: true
+            }
+        });
+        if (!path) return;
+        await invoke('write_text_file', { path, content: json });
+    } else {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'spoor_detections.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }
 
-function exportCSV() {
+async function exportCSV() {
     const hasAnySpecies = state.results.some(r =>
         r.detections.some(d => d.species));
     const header = hasAnySpecies
-        ? 'file,max_confidence,category,num_detections,species'
-        : 'file,max_confidence,category,num_detections';
-    const rows = state.results.map(r => {
-        const dets = visibleDetections(r);
-        const maxConf = dets.length > 0
-            ? dets[0].confidence.toFixed(4) : '0';
-        const topCategory = dets.length > 0
-            ? dets[0].categoryName : 'empty';
-        const name = r.fileName.includes(',') ? `"${r.fileName}"` : r.fileName;
-        const topSpecies = dets.find(d => d.species)?.species.commonName || '';
-        const speciesCol = hasAnySpecies ? `,${topSpecies.includes(',') ? `"${topSpecies}"` : topSpecies}` : '';
-        return `${name},${maxConf},${topCategory},${dets.length}${speciesCol}`;
-    });
+        ? 'file,confidence,category,bbox_x,bbox_y,bbox_w,bbox_h,species'
+        : 'file,confidence,category,bbox_x,bbox_y,bbox_w,bbox_h';
+    const csvQuote = s => s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    const rows = [];
+    for (const r of state.results) {
+        const file = IS_TAURI ? r.nativePath : r.fileName;
+        const name = csvQuote(file);
+        const dets = r.detections;
+        if (dets.length === 0) {
+            rows.push(hasAnySpecies
+                ? `${name},0,empty,0,0,0,0,`
+                : `${name},0,empty,0,0,0,0`);
+        } else {
+            for (const d of dets) {
+                const [bx, by, bw, bh] = d.bboxNorm;
+                const species = d.species ? csvQuote(d.species.commonName) : '';
+                const speciesCol = hasAnySpecies ? `,${species}` : '';
+                rows.push(`${name},${d.confidence.toFixed(4)},${d.categoryName || 'unknown'},${bx.toFixed(6)},${by.toFixed(6)},${bw.toFixed(6)},${bh.toFixed(6)}${speciesCol}`);
+            }
+        }
+    }
 
-    const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'spoor_detections.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const csv = header + '\n' + rows.join('\n');
+
+    if (IS_TAURI) {
+        const path = await invoke('plugin:dialog|save', {
+            options: {
+                title: 'Save detections as CSV',
+                defaultPath: 'spoor_detections.csv',
+                filters: [{ name: 'CSV', extensions: ['csv'] }],
+                canCreateDirectories: true
+            }
+        });
+        if (!path) return;
+        await invoke('write_text_file', { path, content: csv });
+    } else {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'spoor_detections.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }
 
 exportBtn.addEventListener('click', exportJSON);
@@ -1102,7 +1141,7 @@ function hasAnimalDetections() {
 }
 
 function startSpeciesClassification() {
-    // Build requests: every animal detection above threshold with a native path
+    // Build requests: every animal detection with a native path
     const requests = [];
     const map = [];
 
@@ -1111,7 +1150,7 @@ function startSpeciesClassification() {
         if (!result.nativePath) continue;
         for (let di = 0; di < result.detections.length; di++) {
             const det = result.detections[di];
-            if (det.category !== 0 || det.confidence < state.displayThreshold) continue;
+            if (det.category !== 0) continue;
             requests.push({
                 imagePath: result.nativePath,
                 bbox: det.bbox
@@ -1130,6 +1169,7 @@ function startSpeciesClassification() {
     speciesBtn.disabled = true;
     if (!IS_TAURI) statusBar.classList.add('visible');
     statusText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
+    if (IS_TAURI && procText) procText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
     startConvergence();
 
     invoke('classify_detections', { requests }).catch(err => {
@@ -1311,7 +1351,11 @@ resAccurate.addEventListener('click', () => {
 thresholdSlider.addEventListener('input', () => {
     state.displayThreshold = parseFloat(thresholdSlider.value);
     thresholdValue.textContent = Math.round(state.displayThreshold * 100) + '%';
-    for (const result of state.results) updateCard(result);
+    for (const result of state.results) {
+        const allDets = result.detections;
+        const visDets = visibleDetections(result);
+        updateCard(result);
+    }
     applyFilters();
 });
 
@@ -1474,9 +1518,11 @@ if (IS_TAURI) {
         }
 
         state.speciesProcessed++;
-        statusText.textContent = state.speciesProcessed < state.speciesTotal
+        const speciesMsg = state.speciesProcessed < state.speciesTotal
             ? `Identifying species ${state.speciesProcessed + 1} of ${state.speciesTotal}\u2026`
             : 'Finishing species identification\u2026';
+        statusText.textContent = speciesMsg;
+        if (IS_TAURI && procText) procText.textContent = speciesMsg;
 
         // Update the card
         const cardResult = state.results[mapping.resultIndex];
