@@ -63,7 +63,8 @@ const state = {
     speciesStatus: 'idle', // 'idle' | 'running' | 'done'
     speciesMap: [],        // request index → { result, detectionIndex }
     speciesTotal: 0,
-    speciesProcessed: 0
+    speciesProcessed: 0,
+    categoryCounts: { animal: 0, person: 0, vehicle: 0, empty: 0 }
 };
 
 // ── DOM refs ───────────────────────────────────────────────────
@@ -85,6 +86,7 @@ const dropZoneSecondary = dropZone.querySelector('.drop-zone-secondary');
 const convergenceContainer = document.getElementById('convergence');
 const fileInput = document.getElementById('file-input');
 const statusBar = document.getElementById('status-bar');
+const statusText = document.getElementById('status-text');
 const countAnimal = document.getElementById('count-animal');
 const countPerson = document.getElementById('count-person');
 const countVehicle = document.getElementById('count-vehicle');
@@ -226,6 +228,7 @@ async function loadModel() {
 
     state.modelReady = true;
     console.log('[spoor] model ready');
+    if (statusText) statusText.textContent = 'Ready';
 
     if (state.queue.length > 0 && !state.processing) processNext();
 }
@@ -595,6 +598,12 @@ document.addEventListener('drop', handleDrop);
 function handleResult(result) {
     state.results.push(result);
     state.processedImages++;
+    const dets = result.detections.filter(d => d.confidence >= CONF_THRESHOLD);
+    for (const d of dets) {
+        const name = CATEGORIES[d.category];
+        if (name) state.categoryCounts[name]++;
+    }
+    if (dets.length === 0) state.categoryCounts.empty++;
     renderCard(result);
     updateProgress();
 }
@@ -806,14 +815,7 @@ function summarizeDetections(allDetections, visibleDets) {
 }
 
 function updateCategoryCounts() {
-    const counts = { animal: 0, person: 0, vehicle: 0, empty: 0 };
-    for (const r of state.results) {
-        const vis = visibleDetections(r);
-        counts.animal += vis.filter(d => d.category === 0).length;
-        counts.person += vis.filter(d => d.category === 1).length;
-        counts.vehicle += vis.filter(d => d.category === 2).length;
-        if (vis.length === 0) counts.empty++;
-    }
+    const counts = state.categoryCounts;
     countAnimal.textContent = counts.animal;
     countPerson.textContent = counts.person;
     countVehicle.textContent = counts.vehicle;
@@ -848,11 +850,14 @@ function updateProgress() {
             if (state.speciesStatus === 'idle' && hasAnimalDetections()) {
                 speciesBtn.hidden = false;
             }
+        } else {
+            if (statusText) statusText.textContent = `Done \u2014 ${totalImages} images`;
         }
     } else if (totalImages > 0) {
         const name = state.folderName ? ` \u2014 ${state.folderName}` : '';
         const progressMsg = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
         if (IS_TAURI && procText) procText.textContent = progressMsg;
+        if (!IS_TAURI && statusText) statusText.textContent = progressMsg;
         if (state.batchActive) cancelBtn.classList.remove('hidden');
     }
 
@@ -1204,6 +1209,7 @@ function resetState() {
     state.speciesMap = [];
     state.speciesTotal = 0;
     state.speciesProcessed = 0;
+    state.categoryCounts = { animal: 0, person: 0, vehicle: 0, empty: 0 };
 
     // Stop observing resizes
     bboxObserver.disconnect();
@@ -1230,6 +1236,7 @@ function resetDOM() {
     if (labelAnimal) labelAnimal.textContent = 'animals';
     if (labelPerson) labelPerson.textContent = 'people';
     if (labelVehicle) labelVehicle.textContent = 'vehicles';
+    if (statusText) statusText.textContent = 'Ready';
 
     sortControls.hidden = true;
     filterControls.hidden = true;
