@@ -4,12 +4,25 @@
 const IS_TAURI = !!window.__TAURI_INTERNALS__;
 const invoke = IS_TAURI ? window.__TAURI_INTERNALS__.invoke : null;
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist';
-const MODEL_URL = 'models/mdv6-yolov10-c.onnx';
+const MODEL_URL = '../models/mdv6-yolov10-c.onnx';
 const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 const CATEGORIES = { 0: 'animal', 1: 'person', 2: 'vehicle' };
 const CATEGORY_COLORS = { 0: '#5a7a52', 1: '#4a6a9a', 2: '#b06a28' };
+
+// Redraw bbox canvases when image containers resize
+const bboxObserver = new ResizeObserver((entries) => {
+    if (bboxObserver._rafPending) return;
+    bboxObserver._rafPending = true;
+    requestAnimationFrame(() => {
+        bboxObserver._rafPending = false;
+        for (const entry of entries) {
+            const result = entry.target._spoorResult;
+            if (result) drawBboxes(result);
+        }
+    });
+});
 
 // MDv6 is fast enough at 1280 for both native and web
 let INPUT_SIZE = 1280;
@@ -43,6 +56,7 @@ const state = {
     displayThreshold: 0.2,
     visibleCategories: new Set(['animal', 'person', 'vehicle', 'empty']),
     folderName: null,
+    folderPath: null,
     batchActive: false,
     // Species classification
     speciesStatus: 'idle', // 'idle' | 'running' | 'done'
@@ -79,7 +93,13 @@ const resultsSection = document.getElementById('results');
 const resultsSummary = document.getElementById('results-summary');
 const resultsGrid = document.getElementById('results-grid');
 const exportBtn = document.getElementById('export-btn');
+const exportImagesBtn = document.getElementById('export-images-btn');
 const objectUrls = new Map();
+
+// ── Desktop-only DOM refs ─────────────────────────────────────────
+const procRow = document.getElementById('proc-row');
+const convCore = document.getElementById('conv-core');
+const procText = document.getElementById('proc-text');
 
 // ── Convergence particles ───────────────────────────────────────
 
@@ -88,12 +108,12 @@ for (let i = 0; i < PARTICLE_COUNT; i++) {
     const p = document.createElement('div');
     p.className = 'particle';
     const angle = Math.random() * Math.PI * 2;
-    const dist = 35 + Math.random() * 25;
-    const dur = 1.8 + Math.random() * 1.2;
+    const dist = IS_TAURI ? 18 + Math.random() * 14 : 35 + Math.random() * 25;
+    const dur = IS_TAURI ? 1.2 + Math.random() * 0.8 : 1.8 + Math.random() * 1.2;
     p.style.cssText = `
         --sx: ${Math.cos(angle) * dist}px;
         --sy: ${Math.sin(angle) * dist}px;
-        --delay: ${Math.random() * 2.5}s;
+        --delay: ${IS_TAURI ? -Math.random() * 2 : Math.random() * 2.5}s;
         --dur: ${dur}s;
     `;
     convergenceContainer.appendChild(p);
@@ -108,31 +128,50 @@ function clearConvergenceTimers() {
 
 function startConvergence() {
     clearConvergenceTimers();
-    dropText.classList.add('hidden');
-    convergenceContainer.classList.remove('fading');
 
-    convergenceTimers.push(
-        setTimeout(() => dropZone.classList.add('processing'), 100),
-        setTimeout(() => {
-            dropInner.classList.add('pulsing');
-            convergenceContainer.classList.add('active');
-        }, 700)
-    );
+    if (IS_TAURI) {
+        // Desktop: fade out drop zone, show proc-row with convergence
+        dropZone.classList.add('hidden');
+        procRow.classList.add('visible');
+        convergenceContainer.classList.remove('fading');
+        convergenceTimers.push(
+            setTimeout(() => {
+                convCore.classList.add('pulsing');
+                convergenceContainer.classList.add('active');
+            }, 200)
+        );
+    } else {
+        // Web: existing behavior
+        dropText.classList.add('hidden');
+        convergenceContainer.classList.remove('fading');
+        convergenceTimers.push(
+            setTimeout(() => dropZone.classList.add('processing'), 100),
+            setTimeout(() => {
+                dropInner.classList.add('pulsing');
+                convergenceContainer.classList.add('active');
+            }, 700)
+        );
+    }
 }
 
 function stopConvergence() {
     clearConvergenceTimers();
 
-    dropInner.classList.remove('pulsing');
+    dropInner?.classList.remove('pulsing');
+    if (IS_TAURI) convCore?.classList.remove('pulsing');
     convergenceContainer.classList.add('fading');
 
     convergenceTimers.push(
         setTimeout(() => {
             convergenceContainer.classList.remove('active', 'fading');
-            dropZone.classList.remove('processing');
-            convergenceTimers.push(
-                setTimeout(() => dropText.classList.remove('hidden'), 650)
-            );
+            if (IS_TAURI) {
+                // Desktop: proc-row stays visible, just stop animation
+            } else {
+                dropZone.classList.remove('processing');
+                convergenceTimers.push(
+                    setTimeout(() => dropText.classList.remove('hidden'), 650)
+                );
+            }
         }, 450)
     );
 }
@@ -184,6 +223,7 @@ async function loadModel() {
     });
 
     state.modelReady = true;
+    statusText.textContent = 'Ready';
     console.log('[spoor] model ready');
 
     if (state.queue.length > 0 && !state.processing) processNext();
@@ -192,6 +232,7 @@ async function loadModel() {
 if (IS_TAURI) {
     // Model is loaded in Rust on startup — ready immediately
     state.modelReady = true;
+    statusText.textContent = 'Ready';
     console.log('[spoor] native model ready');
 } else {
     loadModel().catch(err => {
@@ -434,7 +475,7 @@ function addFiles(files) {
     }
 
     state.totalImages += imageFiles.length;
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     resultsSection.hidden = false;
     startConvergence();
     updateProgress();
@@ -453,6 +494,7 @@ async function processNext() {
 
     try {
         const result = await infer(item.id, item.file);
+        result.file = item.file; // retain for image export
         handleResult(result);
     } catch (err) {
         console.error('Inference error:', item.file.name, err);
@@ -466,7 +508,8 @@ async function processNext() {
 
 dropZone.addEventListener('click', async (e) => {
     // Only respond to clicks on the drop zone inner area, not the convergence container
-    if (dropZone.classList.contains('processing')) return;
+    const isProcessing = IS_TAURI ? dropZone.classList.contains('hidden') : dropZone.classList.contains('processing');
+    if (isProcessing) return;
 
     if (IS_TAURI) {
         // Folder picker — drag-and-drop covers files, click = folder
@@ -475,6 +518,7 @@ dropZone.addEventListener('click', async (e) => {
         });
         if (!folder) return;
 
+        state.folderPath = folder;
         const folderName = folder.split('/').filter(Boolean).pop() || folder;
         const total = await invoke('process_paths', { paths: [folder], inputSize: INPUT_SIZE, model: MODEL_TYPE });
         if (total === 0) return;
@@ -488,8 +532,9 @@ fileInput.addEventListener('change', () => {
     fileInput.value = '';
 });
 
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+const dragTarget = dropZone;
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dragTarget.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dragTarget.classList.remove('drag-over'));
 
 // ── Browser folder drop support ─────────────────────────────────
 
@@ -538,7 +583,7 @@ async function handleDrop(e) {
 }
 
 dropZone.addEventListener('drop', (e) => {
-    dropZone.classList.remove('drag-over');
+    dragTarget.classList.remove('drag-over');
     handleDrop(e);
 });
 
@@ -559,8 +604,7 @@ function visibleDetections(result) {
 }
 
 function cardCategory(result) {
-    const dets = visibleDetections(result);
-    return dets.length > 0 ? dets[0].categoryName : 'empty';
+    return result.detections.length > 0 ? result.detections[0].categoryName : 'empty';
 }
 
 function applyFilters() {
@@ -696,6 +740,9 @@ function renderCard(result) {
     result.imgElement = img;
     result.bboxCanvas = bboxCanvas;
 
+    container._spoorResult = result;
+    bboxObserver.observe(container);
+
     img.onload = () => {
         img.classList.add('loaded');
         drawBboxes(result);
@@ -783,21 +830,33 @@ function updateProgress() {
     const done = processedImages >= totalImages && totalImages > 0;
 
     if (done) {
-        statusText.textContent = 'Done';
+        const doneText = state.speciesStatus === 'done'
+            ? `Done \u00b7 ${state.speciesProcessed} species identified`
+            : 'Done';
+        statusText.textContent = doneText;
         cancelBtn.classList.add('hidden');
         exportBtn.hidden = false;
         exportCsvBtn.hidden = false;
+        exportImagesBtn.hidden = false;
         clearBtn.hidden = false;
         sortControls.hidden = false;
         filterControls.hidden = false;
         confidenceGroup.hidden = false;
         stopConvergence();
-        if (IS_TAURI && state.speciesStatus === 'idle' && hasAnimalDetections()) {
-            speciesBtn.hidden = false;
+        if (IS_TAURI) {
+            if (procText) procText.textContent = state.speciesStatus === 'done'
+                ? `Done \u2014 ${totalImages} images \u00b7 ${state.speciesProcessed} species identified`
+                : `Done \u2014 ${totalImages} images`;
+            cancelBtn.style.display = 'none';
+            if (state.speciesStatus === 'idle' && hasAnimalDetections()) {
+                speciesBtn.hidden = false;
+            }
         }
     } else if (totalImages > 0) {
         const name = state.folderName ? ` \u2014 ${state.folderName}` : '';
-        statusText.textContent = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
+        const progressMsg = `Processing ${processedImages + 1} of ${totalImages}${name}\u2026`;
+        statusText.textContent = progressMsg;
+        if (IS_TAURI && procText) procText.textContent = progressMsg;
         if (state.batchActive) cancelBtn.classList.remove('hidden');
     }
 
@@ -806,9 +865,6 @@ function updateProgress() {
     const animalCount = countVisibleAnimals();
     const parts = [`${processedImages} of ${totalImages} images`];
     if (animalCount > 0) parts.push(`${animalCount} animal${animalCount !== 1 ? 's' : ''}`);
-    if (state.speciesStatus === 'done') {
-        parts.push(`${state.speciesProcessed} species identified`);
-    }
     resultsSummary.textContent = parts.join(' \u00b7 ');
 }
 
@@ -858,7 +914,7 @@ for (const btn of document.querySelectorAll('.filter-btn')) {
 
 // ── Export: MegaDetector JSON v1.5 ─────────────────────────────
 
-function exportJSON() {
+async function exportJSON() {
     const isQuick = MODEL_TYPE === 'quick';
     const output = {
         info: {
@@ -870,9 +926,9 @@ function exportJSON() {
         },
         detection_categories: { '1': 'animal', '2': 'person', '3': 'vehicle' },
         images: state.results.map(r => {
-            const dets = visibleDetections(r);
+            const dets = r.detections;
             return {
-                file: r.fileName,
+                file: IS_TAURI ? r.nativePath : r.fileName,
                 max_detection_conf: dets.length > 0
                     ? parseFloat(dets[0].confidence.toFixed(4)) : 0,
                 detections: dets.map(d => {
@@ -897,44 +953,184 @@ function exportJSON() {
         })
     };
 
-    const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'spoor_detections.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    const json = JSON.stringify(output, null, 2);
+
+    if (IS_TAURI) {
+        const path = await invoke('plugin:dialog|save', {
+            options: {
+                title: 'Save detections as JSON',
+                defaultPath: 'spoor_detections.json',
+                filters: [{ name: 'JSON', extensions: ['json'] }],
+                canCreateDirectories: true
+            }
+        });
+        if (!path) return;
+        await invoke('write_text_file', { path, content: json });
+    } else {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'spoor_detections.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }
 
-function exportCSV() {
+async function exportCSV() {
     const hasAnySpecies = state.results.some(r =>
         r.detections.some(d => d.species));
     const header = hasAnySpecies
-        ? 'file,max_confidence,category,num_detections,species'
-        : 'file,max_confidence,category,num_detections';
-    const rows = state.results.map(r => {
-        const dets = visibleDetections(r);
-        const maxConf = dets.length > 0
-            ? dets[0].confidence.toFixed(4) : '0';
-        const topCategory = dets.length > 0
-            ? dets[0].categoryName : 'empty';
-        const name = r.fileName.includes(',') ? `"${r.fileName}"` : r.fileName;
-        const topSpecies = dets.find(d => d.species)?.species.commonName || '';
-        const speciesCol = hasAnySpecies ? `,${topSpecies.includes(',') ? `"${topSpecies}"` : topSpecies}` : '';
-        return `${name},${maxConf},${topCategory},${dets.length}${speciesCol}`;
-    });
+        ? 'file,confidence,category,bbox_x,bbox_y,bbox_w,bbox_h,species'
+        : 'file,confidence,category,bbox_x,bbox_y,bbox_w,bbox_h';
+    const csvQuote = s => s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    const rows = [];
+    for (const r of state.results) {
+        const file = IS_TAURI ? r.nativePath : r.fileName;
+        const name = csvQuote(file);
+        const dets = r.detections;
+        if (dets.length === 0) {
+            rows.push(hasAnySpecies
+                ? `${name},0,empty,0,0,0,0,`
+                : `${name},0,empty,0,0,0,0`);
+        } else {
+            for (const d of dets) {
+                const [bx, by, bw, bh] = d.bboxNorm;
+                const species = d.species ? csvQuote(d.species.commonName) : '';
+                const speciesCol = hasAnySpecies ? `,${species}` : '';
+                rows.push(`${name},${d.confidence.toFixed(4)},${d.categoryName || 'unknown'},${bx.toFixed(6)},${by.toFixed(6)},${bw.toFixed(6)},${bh.toFixed(6)}${speciesCol}`);
+            }
+        }
+    }
 
-    const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'spoor_detections.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const csv = header + '\n' + rows.join('\n');
+
+    if (IS_TAURI) {
+        const path = await invoke('plugin:dialog|save', {
+            options: {
+                title: 'Save detections as CSV',
+                defaultPath: 'spoor_detections.csv',
+                filters: [{ name: 'CSV', extensions: ['csv'] }],
+                canCreateDirectories: true
+            }
+        });
+        if (!path) return;
+        await invoke('write_text_file', { path, content: csv });
+    } else {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'spoor_detections.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }
 
 exportBtn.addEventListener('click', exportJSON);
 exportCsvBtn.addEventListener('click', exportCSV);
+
+// ── Export: Annotated images ───────────────────────────────────
+
+async function exportImages() {
+    if (IS_TAURI) {
+        await exportImagesTauri();
+    } else {
+        await exportImagesWeb();
+    }
+}
+
+async function exportImagesTauri() {
+    // Pick output directory
+    const outputDir = await invoke('plugin:dialog|open', {
+        options: { directory: true, title: 'Choose output folder for annotated images' }
+    });
+    if (!outputDir) return;
+
+    const items = state.results
+        .filter(r => r.nativePath && !r.cardElement.hidden)
+        .map(r => ({
+            filePath: r.nativePath,
+            detections: visibleDetections(r).map(d => ({
+                bbox: d.bboxNorm,
+                confidence: d.confidence,
+                category: d.categoryName || CATEGORIES[d.category] || 'unknown',
+                species: d.species ? d.species.commonName : null
+            }))
+        }));
+
+    if (items.length === 0) return;
+
+    exportImagesBtn.disabled = true;
+
+    let total;
+    try {
+        total = await invoke('export_images', {
+            outputDir,
+            items,
+            baseDir: state.folderPath || null
+        });
+    } catch (e) {
+        console.error('[spoor] Export invoke failed:', e);
+        exportImagesBtn.disabled = false;
+        return;
+    }
+
+    if (total === 0) {
+        exportImagesBtn.disabled = false;
+    }
+    // Progress and completion handled by event listeners (set up in Tauri block below)
+}
+
+async function exportImagesWeb() {
+    const results = state.results
+        .filter(r => r.file && !r.cardElement.hidden)
+        .map(r => ({
+            file: r.file,
+            fileName: r.fileName,
+            origWidth: r.origWidth,
+            origHeight: r.origHeight,
+            detections: visibleDetections(r).map(d => ({
+                bbox: d.bbox,
+                confidence: d.confidence,
+                category: d.category,
+                categoryName: d.categoryName,
+                species: d.species ? { commonName: d.species.commonName } : null
+            }))
+        }));
+
+    if (results.length === 0) return;
+
+    exportImagesBtn.disabled = true;
+
+    const worker = new Worker('export-worker.js');
+    worker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === 'progress') {
+            // progress shown in status bar, button stays stable
+        } else if (msg.type === 'done') {
+            const url = URL.createObjectURL(msg.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = state.folderName
+                ? `spoor_${state.folderName}.zip`
+                : 'spoor_images.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            exportImagesBtn.disabled = false;
+            worker.terminate();
+        } else if (msg.type === 'error') {
+            console.error('[spoor] Image export failed:', msg.error);
+            exportImagesBtn.disabled = false;
+            worker.terminate();
+        }
+    };
+
+    worker.postMessage({ results });
+}
+
+exportImagesBtn.addEventListener('click', exportImages);
 
 // ── Species identification (Tauri only) ────────────────────────
 
@@ -945,7 +1141,7 @@ function hasAnimalDetections() {
 }
 
 function startSpeciesClassification() {
-    // Build requests: every animal detection above threshold with a native path
+    // Build requests: every animal detection with a native path
     const requests = [];
     const map = [];
 
@@ -954,7 +1150,7 @@ function startSpeciesClassification() {
         if (!result.nativePath) continue;
         for (let di = 0; di < result.detections.length; di++) {
             const det = result.detections[di];
-            if (det.category !== 0 || det.confidence < state.displayThreshold) continue;
+            if (det.category !== 0) continue;
             requests.push({
                 imagePath: result.nativePath,
                 bbox: det.bbox
@@ -971,16 +1167,15 @@ function startSpeciesClassification() {
     state.speciesProcessed = 0;
 
     speciesBtn.disabled = true;
-    speciesBtn.textContent = 'Identifying\u2026';
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     statusText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
+    if (IS_TAURI && procText) procText.textContent = `Identifying species 1 of ${requests.length}\u2026`;
     startConvergence();
 
     invoke('classify_detections', { requests }).catch(err => {
         console.error('[spoor] Species classification failed:', err);
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        speciesBtn.textContent = 'Identify species';
         statusText.textContent = `Species identification failed: ${err}`;
     });
 }
@@ -989,7 +1184,7 @@ speciesBtn.addEventListener('click', startSpeciesClassification);
 
 // ── Clear / reset ───────────────────────────────────────────────
 
-function clearResults() {
+function resetState() {
     // Cancel any active batch first
     if (state.batchActive && IS_TAURI) {
         invoke('cancel_processing');
@@ -1014,48 +1209,86 @@ function clearResults() {
     state.processedImages = 0;
     state.sortBy = 'processing';
     state.folderName = null;
+    state.folderPath = null;
     state.batchActive = false;
     state.speciesStatus = 'idle';
     state.speciesMap = [];
     state.speciesTotal = 0;
     state.speciesProcessed = 0;
 
-    // Clear DOM
+    // Stop observing resizes
+    bboxObserver.disconnect();
+
+    // Reset sort buttons
+    for (const btn of document.querySelectorAll('.sort-btn')) {
+        btn.classList.toggle('active', btn.dataset.sort === 'processing');
+    }
+}
+
+function resetDOM() {
     resultsGrid.innerHTML = '';
     resultsSection.hidden = true;
-    statusBar.classList.remove('visible');
-    statusText.textContent = '';
+    resultsSection.classList.remove('fading');
     resultsSummary.textContent = '';
 
-    // Reset convergence
     clearConvergenceTimers();
-    dropZone.classList.remove('processing');
-    dropInner.classList.remove('pulsing');
     convergenceContainer.classList.remove('active', 'fading');
-    dropText.classList.remove('hidden');
+    dropInner?.classList.remove('pulsing');
+    if (IS_TAURI) convCore?.classList.remove('pulsing');
 
-    // Reset category counts
     countAnimal.textContent = '0';
     countPerson.textContent = '0';
     countVehicle.textContent = '0';
     countEmpty.textContent = '0';
 
-    // Hide controls
     sortControls.hidden = true;
     filterControls.hidden = true;
     confidenceGroup.hidden = true;
     exportBtn.hidden = true;
     exportCsvBtn.hidden = true;
+    exportImagesBtn.hidden = true;
     speciesBtn.hidden = true;
     speciesBtn.disabled = false;
-    speciesBtn.textContent = 'Identify species';
     clearBtn.hidden = true;
     cancelBtn.classList.add('hidden');
     cancelBtn.disabled = false;
+}
 
-    // Reset sort buttons
-    for (const btn of document.querySelectorAll('.sort-btn')) {
-        btn.classList.toggle('active', btn.dataset.sort === 'processing');
+function clearResults() {
+    resetState();
+
+    if (IS_TAURI) {
+        // Phase 1: fade out proc-row + results (300ms)
+        procRow.classList.remove('visible');
+        resultsSection.classList.add('fading');
+        confidenceGroup.classList.add('fading');
+        countAnimal.textContent = '0';
+        countPerson.textContent = '0';
+        countVehicle.textContent = '0';
+        countEmpty.textContent = '0';
+        statusText.textContent = 'Ready';
+
+        // Phase 2: after fade completes, clean up and snap drop zone in
+        setTimeout(() => {
+            resetDOM();
+            confidenceGroup.classList.remove('fading');
+            if (procText) procText.textContent = '';
+            cancelBtn.style.display = '';
+
+            // Snap: show drop zone instantly, no fade
+            dropZone.classList.add('no-transition');
+            dropZone.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                dropZone.classList.remove('no-transition');
+            });
+        }, 300);
+    } else {
+        // Web: instant clear
+        resetDOM();
+        statusBar.classList.remove('visible');
+        statusText.textContent = '';
+        dropZone.classList.remove('processing');
+        dropText.classList.remove('hidden');
     }
 }
 
@@ -1118,7 +1351,11 @@ resAccurate.addEventListener('click', () => {
 thresholdSlider.addEventListener('input', () => {
     state.displayThreshold = parseFloat(thresholdSlider.value);
     thresholdValue.textContent = Math.round(state.displayThreshold * 100) + '%';
-    for (const result of state.results) updateCard(result);
+    for (const result of state.results) {
+        const allDets = result.detections;
+        const visDets = visibleDetections(result);
+        updateCard(result);
+    }
     applyFilters();
 });
 
@@ -1128,7 +1365,7 @@ function startBatch(total, folderName) {
     state.totalImages += total;
     state.batchActive = true;
     state.folderName = folderName;
-    statusBar.classList.add('visible');
+    if (!IS_TAURI) statusBar.classList.add('visible');
     resultsSection.hidden = false;
     startConvergence();
     updateProgress();
@@ -1137,6 +1374,7 @@ function startBatch(total, folderName) {
 function endBatch() {
     state.batchActive = false;
     state.folderName = null;
+    state.folderPath = null;
     cancelBtn.classList.add('hidden');
     cancelBtn.disabled = false;
 }
@@ -1210,11 +1448,15 @@ if (IS_TAURI) {
         endBatch();
 
         stopConvergence();
-        statusText.textContent = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
+        const cancelMsg = `Cancelled \u2014 ${skipped} image${skipped !== 1 ? 's' : ''} skipped`;
+        statusText.textContent = cancelMsg;
+        if (procText) procText.textContent = cancelMsg;
+        cancelBtn.style.display = 'none';
 
         if (state.results.length > 0) {
             exportBtn.hidden = false;
             exportCsvBtn.hidden = false;
+            exportImagesBtn.hidden = false;
             clearBtn.hidden = false;
             sortControls.hidden = false;
             filterControls.hidden = false;
@@ -1223,6 +1465,28 @@ if (IS_TAURI) {
                 speciesBtn.hidden = false;
             }
         }
+    });
+
+    // ── Image export events ────────────────────────────────────
+    tauriListen('export-progress', (payload) => {
+        statusText.textContent = `Exporting ${payload.current}/${payload.total}\u2026`;
+    });
+
+    tauriListen('export-complete', (payload) => {
+        exportImagesBtn.disabled = false;
+        const msg = payload.errors > 0
+            ? `Exported ${payload.total - payload.errors}/${payload.total} images (${payload.errors} failed)`
+            : `Exported ${payload.total} images`;
+        statusText.textContent = msg;
+    });
+
+    tauriListen('export-error', (payload) => {
+        console.error('[spoor] Export error:', payload.filePath, payload.error);
+    });
+
+    tauriListen('export-cancelled', () => {
+        exportImagesBtn.disabled = false;
+        statusText.textContent = 'Export cancelled';
     });
 
     // ── Species classification events ───────────────────────────
@@ -1254,9 +1518,11 @@ if (IS_TAURI) {
         }
 
         state.speciesProcessed++;
-        statusText.textContent = state.speciesProcessed < state.speciesTotal
+        const speciesMsg = state.speciesProcessed < state.speciesTotal
             ? `Identifying species ${state.speciesProcessed + 1} of ${state.speciesTotal}\u2026`
             : 'Finishing species identification\u2026';
+        statusText.textContent = speciesMsg;
+        if (IS_TAURI && procText) procText.textContent = speciesMsg;
 
         // Update the card
         const cardResult = state.results[mapping.resultIndex];
@@ -1270,7 +1536,6 @@ if (IS_TAURI) {
 
     tauriListen('species-complete', () => {
         state.speciesStatus = 'done';
-        speciesBtn.textContent = 'Species identified';
         speciesBtn.disabled = true;
         stopConvergence();
         updateProgress(); // refresh resultsSummary with species count
@@ -1279,7 +1544,6 @@ if (IS_TAURI) {
     tauriListen('species-cancelled', () => {
         state.speciesStatus = 'idle';
         speciesBtn.disabled = false;
-        speciesBtn.textContent = 'Identify species';
         statusText.textContent = 'Species identification cancelled';
         stopConvergence();
     });

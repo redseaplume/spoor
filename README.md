@@ -2,15 +2,13 @@
 
 Camera trap image detection and species identification. Runs locally, nothing leaves your device.
 
-*Spoor: the tracks and signs an animal leaves behind.*
-
 ## What it does
 
-Drop camera trap images into Spoor and it tells you what's there: animal, person, vehicle, or nothing. For animal detections, it identifies the species — 2,498 species worldwide, primarily mammals and birds. Coverage varies by region; the model was trained on camera trap datasets with broader representation in well-studied areas, and falls back to genus or family level when uncertain.
+Drop camera trap images into Spoor and it tells you what's there: animal, person, vehicle, or nothing. For animal detections, it identifies the species using SpeciesNet v4: 2,498 species worldwide, primarily mammals and birds. Coverage varies by region.
 
-- **Two detection models**: Quick (~180ms/image) for triage, Thorough (~1s/image) for precision
+- **Two detection models**: Quick (~180ms/image) for triage, Thorough (~1s/image) for precision. Thorough offers 1280px (native, highest recall) or 640px (~3.5x faster, ~9% fewer detections).
 - **Species identification**: 2,498 species via SpeciesNet
-- **Export**: MegaDetector JSON v1.5 and CSV — compatible with Timelapse and the wider camera trap ecosystem
+- **Export**: [MegaDetector JSON v1.5](https://lila.science/megadetector-output-format) and CSV — compatible with Timelapse and the wider camera trap ecosystem. Species identifications are included in the JSON but use Spoor's own format, not the spec's `classifications` field.
 - **No install complexity**: no Python, no PyTorch, no 25GB downloads. One app.
 - **Web version**: 10 MB model that runs in your browser. No sign-up or account needed.
 - **Data privacy**: your data stays local.
@@ -43,7 +41,7 @@ cargo tauri build
 | **Install size** | 300 MB | 383–498 MB | 4.4 GB+ |
 | **Dependencies** | None | None | Python, Conda, PyTorch |
 | **Detection models** | 2 (MDv6 + MDv5a) | 1 (MDv5) | MDv5 + regional |
-| **Species ID** | 2,498 species | No | Regional classifiers |
+| **Species ID** | SpeciesNet v4 | No | Regional classifiers |
 | **Web version** | Yes (10 MB model) | No | No |
 | **Data stays local** | Yes | Yes | Yes |
 | **Platforms** | macOS, Windows, Linux | Windows, macOS, Linux | Windows, macOS, Linux |
@@ -52,12 +50,12 @@ Spoor bundles three models (two detectors + species classifier) in a single app 
 
 ## Benchmarks
 
-See [BENCHMARKS.md](BENCHMARKS.md) for full methodology, results, and reproduction steps. The short version: we tested on 200 Caltech Camera Traps images against ground truth. MDv5a INT8 at native resolution hits 99.2% bbox recall and 98.4% precision. INT8 quantization loses almost nothing vs FP32 (99% precision, 99% recall, 0.959 IoU). Scripts to reproduce everything are in `scripts/`.
+See [BENCHMARKS.md](BENCHMARKS.md) for full methodology, results, and reproduction steps. We tested on 200 Caltech Camera Traps images against ground truth. MDv5a INT8 at native resolution hits 99.2% bbox recall and 98.4% precision. INT8 quantization loses almost nothing vs FP32 (99% precision, 99% recall, 0.959 IoU). Scripts to reproduce everything are in `scripts/`.
 
 ## Detection models
 
-- **Thorough** (MDv5a INT8): [MegaDetector v5a](https://github.com/agentmorris/MegaDetector) via [bencevans/megadetector-onnx](https://github.com/bencevans/megadetector-onnx). Tighter bounding boxes, higher recall.
-- **Quick** (MDv6 YOLOv10-c): [MegaDetector v6](https://github.com/microsoft/CameraTraps) via Zenodo. 14x smaller, 6x faster.
+- **Quick** (MDv6 YOLOv10-c): [MegaDetector v6](https://github.com/microsoft/CameraTraps) via Zenodo. 14x smaller, 6x faster. Runs at 1280px.
+- **Thorough** (MDv5a INT8): [MegaDetector v5a](https://github.com/agentmorris/MegaDetector) via [bencevans/megadetector-onnx](https://github.com/bencevans/megadetector-onnx). Tighter bounding boxes, higher recall. 1280px or 640px.
 - **Species** (SpeciesNet v4): [Google SpeciesNet](https://github.com/google/cameratrapai), Apache 2.0. EfficientNetV2-M, 2,498 labels.
 
 ## License
@@ -68,4 +66,4 @@ Spoor is free for researchers, conservationists, and anyone doing work that matt
 
 ---
 
-Built by Claude and Ezra.
+Built by Claude and redseaplume.

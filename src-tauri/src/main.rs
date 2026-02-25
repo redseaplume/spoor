@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod detect;
+mod export;
 
 use detect::ModelType;
 use std::path::PathBuf;
@@ -206,6 +207,45 @@ fn cancel_processing() {
     CANCEL_FLAG.store(true, Ordering::Relaxed);
 }
 
+// ── Text file export (CSV / JSON) ───────────────────────────────
+
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("Write failed: {e}"))
+}
+
+// ── Image export ───────────────────────────────────────────────
+
+static FONT_BYTES: &[u8] = include_bytes!("../resources/JetBrainsMono-Regular.ttf");
+
+#[tauri::command]
+fn export_images(
+    app: tauri::AppHandle,
+    output_dir: String,
+    items: Vec<export::ExportItem>,
+    base_dir: Option<String>,
+) -> Result<usize, String> {
+    let total = items.len();
+    if total == 0 {
+        return Ok(0);
+    }
+
+    let output = PathBuf::from(&output_dir);
+    if !output.exists() {
+        std::fs::create_dir_all(&output)
+            .map_err(|e| format!("Create output dir: {}", e))?;
+    }
+
+    let base = base_dir.map(PathBuf::from);
+
+    CANCEL_FLAG.store(false, Ordering::Relaxed);
+    std::thread::spawn(move || {
+        export::export_images(app, output, items, base, FONT_BYTES, &CANCEL_FLAG);
+    });
+
+    Ok(total)
+}
+
 // ── Drag-and-drop event ─────────────────────────────────────────
 
 #[derive(Clone, serde::Serialize)]
@@ -385,7 +425,9 @@ fn main() {
             process_folder,
             process_paths,
             cancel_processing,
-            classify_detections
+            classify_detections,
+            export_images,
+            write_text_file
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {

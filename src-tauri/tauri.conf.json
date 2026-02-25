@@ -10,6 +10,7 @@
     "windows": [
       {
         "title": "Spoor",
+        "url": "desktop.html",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
