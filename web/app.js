@@ -5,6 +5,7 @@ const IS_TAURI = !!window.__TAURI_INTERNALS__;
 const invoke = IS_TAURI ? window.__TAURI_INTERNALS__.invoke : null;
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist';
 const MODEL_URL = '../models/mdv6-yolov10-c.onnx';
+const WEB_MODEL_URL = 'models/mdv6-yolov10-c.onnx';
 const MODEL_CACHE = 'spoor-models-v2';
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
@@ -181,7 +182,7 @@ function stopConvergence() {
 
 async function loadModel() {
     const cache = await caches.open(MODEL_CACHE);
-    let response = await cache.match(MODEL_URL);
+    let response = await cache.match(WEB_MODEL_URL);
 
     if (!response) {
         let showProgress = false;
@@ -192,7 +193,7 @@ async function loadModel() {
             dropZoneSecondary.style.display = '';
         }, 400);
 
-        const fetchResponse = await fetch(MODEL_URL);
+        const fetchResponse = await fetch(WEB_MODEL_URL);
         if (!fetchResponse.ok) throw new Error(`Model fetch failed: ${fetchResponse.status}`);
 
         const contentLength = +fetchResponse.headers.get('Content-Length') || 0;
@@ -214,7 +215,7 @@ async function loadModel() {
         clearTimeout(slowTimer);
         const blob = new Blob(chunks);
         response = new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } });
-        await cache.put(MODEL_URL, response.clone());
+        await cache.put(WEB_MODEL_URL, response.clone());
     }
 
     const buffer = await response.arrayBuffer();
