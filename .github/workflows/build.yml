@@ -68,6 +68,9 @@ jobs:
         run: cargo tauri build
         working-directory: src-tauri
 
+      - name: Ad-hoc codesign
+        run: codesign -s - --force --deep src-tauri/target/release/bundle/macos/Spoor.app
+
       - name: Repackage DMG with appdmg
         run: |
           TAURI_DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg)
