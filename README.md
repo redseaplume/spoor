@@ -19,7 +19,7 @@ Grab the latest build for your platform from [Releases](https://github.com/redse
 
 ### macOS
 
-Download **Spoor_x.x.x_aarch64.dmg**, open it, and drag Spoor to Applications.
+Download **Spoor_x.x.x_aarch64.dmg** and open it. A Finder window should appear — drag Spoor to the Applications folder. If no window appears, look for the **Spoor** volume in the Finder sidebar under Locations, or press `Cmd+Shift+G` and go to `/Volumes/Spoor`.
 
 Spoor is not signed with an Apple Developer certificate. macOS will block the first launch — right-click the app and choose **Open**, then click Open again in the dialog. You only need to do this once.
 
