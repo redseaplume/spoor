@@ -72,7 +72,7 @@ jobs:
         run: |
           TAURI_DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg)
           rm "$TAURI_DMG"
-          cat > /tmp/appdmg.json << 'SPEC'
+          cat > appdmg.json << 'SPEC'
           {
             "title": "Spoor",
             "icon": "src-tauri/icons/icon.icns",
@@ -84,7 +84,7 @@ jobs:
             ]
           }
           SPEC
-          npx appdmg /tmp/appdmg.json "$TAURI_DMG"
+          npx appdmg appdmg.json "$TAURI_DMG"
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
