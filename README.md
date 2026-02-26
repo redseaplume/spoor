@@ -21,13 +21,13 @@ Grab the latest build for your platform from [Releases](https://github.com/redse
 
 Download **Spoor_x.x.x_aarch64.dmg** and open it. A Finder window should appear — drag Spoor to the Applications folder. If no window appears, look for the **Spoor** volume in the Finder sidebar under Locations, or press `Cmd+Shift+G` and go to `/Volumes/Spoor`.
 
-Spoor is not signed with an Apple Developer certificate. macOS will block the first launch — right-click the app and choose **Open**, then click Open again in the dialog. You only need to do this once.
+Spoor is not signed with an Apple Developer certificate. macOS will block the first launch. Go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Spoor message. You only need to do this once.
 
 Apple Silicon native. Intel Macs run via Rosetta 2.
 
 ### Windows
 
-Download **Spoor_x.x.x_x64-setup.exe** and run the installer. WebView2 is required and installs automatically if missing.
+Download **Spoor_x.x.x_x64-setup.exe** and run the installer. Windows may show a SmartScreen warning ("Windows protected your PC") — click **More info**, then **Run anyway**. WebView2 is required and installs automatically if missing.
 
 ### Linux
 
