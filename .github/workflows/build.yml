@@ -68,6 +68,24 @@ jobs:
         run: cargo tauri build
         working-directory: src-tauri
 
+      - name: Repackage DMG with create-dmg
+        run: |
+          brew install create-dmg
+          TAURI_DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg)
+          APP_PATH="src-tauri/target/release/bundle/macos/Spoor.app"
+          rm "$TAURI_DMG"
+          create-dmg \
+            --volname "Spoor" \
+            --volicon "src-tauri/icons/icon.icns" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 80 \
+            --icon "Spoor.app" 180 170 \
+            --hide-extension "Spoor.app" \
+            --app-drop-link 480 170 \
+            "$TAURI_DMG" \
+            "$APP_PATH"
+
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
